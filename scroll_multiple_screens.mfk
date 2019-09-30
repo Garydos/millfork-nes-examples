@@ -1,0 +1,430 @@
+// compile with -t nes_small_v
+
+import nes_joy
+
+const word ppu_nametable_ram = $2000
+const word ppu_pallete_ram = $3F00
+bool scrolling_right
+bool v_scrolling
+byte v_scroll_dir
+array oam_buffer [256] @$200 // sprite buffer
+byte xscroll
+byte yscroll
+byte nametable
+byte screencounter
+byte border_draw_counter
+
+void main() {
+    init_sprites()
+    load_palletes()
+    draw_screen_nametable1(screen1.addr)
+    xscroll = 0
+    nametable = 0
+    screencounter = 0
+    scrolling_right = true
+    border_draw_counter = 0
+    v_scrolling = false
+    v_scroll_dir = 0
+    yscroll = 0
+    ppu_set_scroll(0,0)
+    ppu_wait_vblank()
+    ppu_ctrl = %10010000   // enable NMI, sprites from Pattern Table 0, background from Pattern Table 1
+    ppu_mask = %00011110   // enable sprites, enable background, no clipping on left side
+    while(true) {}
+}
+
+void nmi() {
+    //Push sprite information to the PPU through DMA transfer
+    ppu_oam_dma_write(oam_buffer.addr.hi)
+    
+    if v_scrolling {
+        v_scroll()
+        ppu_set_scroll(xscroll,yscroll)
+        return
+    }
+    
+    read_joy1()
+    if input_start != 0 {
+        scrolling_right = false
+    }
+    else {
+        scrolling_right = true
+    }
+    
+    if input_dy > 0  && xscroll == 0 {
+        v_scroll_dir = 0
+        v_scrolling = true
+    }
+    if input_dy < 0  && xscroll == 0 {
+        v_scroll_dir = 1
+        v_scrolling = true
+    }
+    
+    if xscroll & %00000111 == 0 {
+        // on an 8 pixel boundary, so
+        // load the appropriate tiles
+        border_draw_counter = 1
+    }
+    
+    if border_draw_counter == 1 {
+        if scrolling_right {
+            load_new_right_column()
+        }
+        border_draw_counter += 1
+    }
+    else if border_draw_counter == 2 {
+        if not(scrolling_right) {
+            load_new_left_column()
+        }
+        border_draw_counter = 0
+    }
+    
+    if scrolling_right {
+        xscroll += 1
+    }
+    else {
+        xscroll -= 1
+    }
+    
+    if scrolling_right {
+        if xscroll == 0 {
+            nametable ^= %00000001
+            screencounter += 1
+            if screencounter >= 4 {
+                screencounter = 0
+            }
+        }
+    }
+    else {
+        if xscroll == $FF {
+            nametable ^= %00000001
+            if screencounter == 0 {
+                screencounter = 3
+            }
+            else {
+                screencounter -= 1
+            }
+        }
+    }
+
+    ppu_set_scroll(xscroll,0)
+    ppu_ctrl = %10010000 | nametable
+    ppu_mask = %00011110
+}
+
+void irq() {
+    
+}
+
+void v_scroll() {
+    if v_scroll_dir == 0 {
+        yscroll -= 2
+    }
+    else {
+        yscroll += 2
+    }
+    
+    if yscroll >= $F0 {
+        if v_scroll_dir == 0 {
+            yscroll = $EE
+        }
+        else {
+            yscroll = 0
+        }
+    }
+    
+    if yscroll == 0 {
+        v_scrolling = false
+    }
+}
+
+void load_new_left_column() {
+    pointer screen
+    byte screencounter_next
+    byte i
+    byte xscroll_div_8
+    byte nametable_temp
+    byte alignment
+    
+    xscroll_div_8 = xscroll >> 3
+    
+    if xscroll_div_8 == 0  {
+        if screencounter == 0 {
+            screencounter_next = 3
+        }
+        else {
+            screencounter_next = screencounter - 1
+        }
+        nametable_temp = nametable ^ %00000001
+        alignment = $1F
+    }
+    else {
+        screencounter_next = screencounter
+        nametable_temp = nametable
+        alignment = xscroll_div_8 - 1
+    }
+    
+    if screencounter_next == 0 {
+        screen = screen1.addr
+    }
+    if screencounter_next == 1 {
+        screen = screen2.addr
+    }
+    if screencounter_next == 2 {
+        screen = screen3.addr
+    }
+    if screencounter_next == 3 {
+        screen = screen4.addr
+    }
+    
+    screen += alignment
+
+    //set ppu address increment to 32 so we can draw the left and right borders
+    //(allows us to draw to the nametable in vertical strips rather than horizontal)
+    ppu_ctrl = %10010100
+    
+    read_ppu_status()
+    if nametable_temp == 0 {
+        ppu_set_addr(ppu_nametable_ram + alignment)
+    }
+    else {
+        ppu_set_addr(ppu_nametable_ram + $0400 + alignment)
+    }
+    
+    for i,0,until,$1D {
+        ppu_write_data(screen[0])
+        screen += $20
+    }
+}
+
+void load_new_right_column() {
+    pointer screen
+    byte screencounter_next
+    byte i
+    byte xscroll_div_8
+    
+    if screencounter == 3 {
+        screencounter_next = 0
+    }
+    else {
+        screencounter_next = screencounter + 1
+    }
+    
+    if screencounter_next == 0 {
+        screen = screen1.addr
+    }
+    if screencounter_next == 1 {
+        screen = screen2.addr
+    }
+    if screencounter_next == 2 {
+        screen = screen3.addr
+    }
+    if screencounter_next == 3 {
+        screen = screen4.addr
+    }
+    
+    xscroll_div_8 = xscroll >> 3
+    screen += xscroll_div_8 //properly align the screen pointer
+
+    //set ppu address increment to 32 so we can draw the left and right borders
+    //(allows us to draw to the nametable in vertical strips rather than horizontal)
+    ppu_ctrl = %10010100
+    
+    read_ppu_status()
+    if nametable == 0 {
+        ppu_set_addr(ppu_nametable_ram + $0400 + xscroll_div_8)
+    }
+    else {
+        ppu_set_addr(ppu_nametable_ram + xscroll_div_8)
+    }
+    
+    for i,0,until,$1D {
+        ppu_write_data(screen[0])
+        screen += $20
+    }
+}
+
+void init_sprites() {
+    byte i
+    for i,0,to,255 {
+        if (i & %00000011) == 0 {
+            //each sprite takes up 4 bytes, and we want to edit
+            //the y position of each sprite (0th byte)
+            //so we use the %00000011 mask to write every 4th byte (every 0th sprite byte)
+            
+            oam_buffer[i] = $ef // move the sprite off screen
+        }
+        else {
+            oam_buffer[i] = 0
+        }
+    }
+}
+
+inline asm void ppu_wait_vblank() {
+    vblankwait:
+        BIT $2002
+        ! BPL vblankwait
+    ? RTS
+}
+
+inline void draw_screen_nametable1(pointer screen) {
+    word i
+    read_ppu_status()
+    ppu_set_addr(ppu_nametable_ram)
+    for i,0,until,$3C0 {
+        ppu_write_data(screen[i])
+    }
+}
+
+inline void draw_screen_nametable2(pointer screen) {
+    word i
+    read_ppu_status()
+    ppu_set_addr(ppu_nametable_ram+$0400)
+    for i,0,until,$3C0 {
+        ppu_write_data(screen[i])
+    }
+}
+
+inline void load_palletes() {
+    byte i
+    read_ppu_status() // read PPU status to reset the high/low latch
+    ppu_set_addr(ppu_pallete_ram) // point the PPU to palette ram
+    for i,0,until,$20 {
+        ppu_write_data(pallete[i])
+    }
+}
+
+const array screen1 = [
+    "11111111111111111111111111111111" ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "This is random text I'm typing i" ascii
+]
+
+const array screen2 = [
+    "22222222222222222222222222222222" ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "n order to test out the scrollin" ascii
+]
+
+const array screen3 = [
+    "33333333333333333333333333333333" ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "g. Hold down the start button to" ascii
+]
+
+const array screen4 = [
+    "44444444444444444444444444444444" ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    "                                " ascii,
+    " scroll backwards.End of screen." ascii
+]
+
+const array pallete = [
+  $22,$29,$1A,$0F,  $22,$36,$17,$0F,  $22,$30,$21,$0F,  $22,$27,$17,$0F, //background palette
+  $22,$1C,$15,$14,  $22,$02,$38,$3C,  $22,$1C,$15,$14,  $22,$02,$38,$3C //sprite palette
+]
+
+segment(chrrom) const array graphics @ $0000 = file("tiles.chr")
