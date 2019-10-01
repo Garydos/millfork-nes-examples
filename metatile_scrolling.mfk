@@ -1,5 +1,13 @@
 // compile with -t nes_small_v
 
+//odd bug: scrolling left produces artifacts in
+//the nametable that is not currently being shown.
+//since the artifacts are never on screen, it shouldn't
+//be an issue, but it's worth noting
+
+//TODO: fix attribute table bug (when switching scrolling
+//from right to left, attributes can get messed up)
+
 import nes_joy
 
 const word ppu_nametable0 = $2000
@@ -16,6 +24,7 @@ array oam_buffer [256] @$200 // sprite buffer
 byte nametable
 byte current_column
 byte next_column
+byte next_screen
 pointer screen_pointer
 byte xscroll
 bool scrolling_right
@@ -32,6 +41,7 @@ void main() {
     current_column = 0
     draw_counter = 0
     previous_scroll = 0
+    next_screen = 0
     scrolling_right = false
     scrolling_left = false
     
@@ -76,25 +86,6 @@ void nmi() {
         scrolling_right = false
     }
     
-    if xscroll & %00000111 == 0 {
-        // on a 8 pixel boundary, so
-        // either increment or decrement the
-        // column number
-        if scrolling_right {
-            current_column += 1
-            if current_column >= $80 {
-                current_column -= $80
-            }
-        }
-        else if scrolling_left {
-            current_column -= 1
-            if current_column >= $80 {
-                current_column = $7F
-            }
-        }
-    }
-    
-    
     if scrolling_right || (previous_scroll == 0 && draw_counter > 0) {
         // load the rightmost offscreen column by default,
         // so that there's no glitches when scrolling right
@@ -135,7 +126,15 @@ void nmi() {
         if scrolling_right {
             xscroll += 2
             if xscroll == 0 {
+                next_screen += 1
+                if next_screen >= 4 {
+                    next_screen = 0
+                }
                 nametable ^= %00000001
+            }
+            if xscroll & %00000111 == 0 {
+                current_column = next_screen * $20
+                current_column += xscroll/8
             }
         }
         
@@ -147,7 +146,15 @@ void nmi() {
         if scrolling_left {
             xscroll -= 2
             if xscroll >= $FE {
+                next_screen -= 1
+                if next_screen >= 4 {
+                    next_screen = 3
+                }
                 nametable ^= %00000001
+            }
+            if (xscroll+2) & %00000111 == 0 {
+                current_column = next_screen * $20
+                current_column += xscroll/8
             }
         }
         
@@ -174,23 +181,9 @@ void nmi() {
         previous_scroll = 1
     }
     
-    //update the scroll variable
-    // if scrolling_right {
-        // xscroll += 2
-        // if xscroll == 0 {
-            // nametable ^= %00000001
-        // }
-    // }
-    // else if scrolling_left {
-        // xscroll -= 2
-        // if xscroll >= $FE {
-            // nametable ^= %00000001
-        // }
-    // }
-    
     ppu_set_scroll(xscroll,0)
     ppu_ctrl = %10010000 | nametable
-    ppu_mask = %00011110
+    ppu_mask = %00011100
     
     //game logic goes here
 }
