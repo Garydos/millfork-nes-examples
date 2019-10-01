@@ -20,6 +20,7 @@ pointer screen_pointer
 byte xscroll
 bool scrolling_right
 bool scrolling_left
+byte previous_scroll
 byte draw_counter
 
 void main() {
@@ -30,6 +31,7 @@ void main() {
     nametable = 0
     current_column = 0
     draw_counter = 0
+    previous_scroll = 0
     scrolling_right = false
     scrolling_left = false
     
@@ -67,7 +69,7 @@ void nmi() {
     else if input_dx < 0 {
         //TODO: left scrolling
         scrolling_right = false
-        //scrolling_left = true
+        scrolling_left = true
     }
     else {
         scrolling_left = false
@@ -80,18 +82,20 @@ void nmi() {
         // column number
         if scrolling_right {
             current_column += 1
+            if current_column >= $80 {
+                current_column -= $80
+            }
         }
         else if scrolling_left {
             current_column -= 1
-        }
-        
-        if current_column >= $80 {
-            current_column -= $80
+            if current_column >= $80 {
+                current_column = $7F
+            }
         }
     }
     
     
-    if not(scrolling_left) {
+    if scrolling_right || (previous_scroll == 0 && draw_counter > 0) {
         // load the rightmost offscreen column by default,
         // so that there's no glitches when scrolling right
         
@@ -99,7 +103,7 @@ void nmi() {
         // so that we don't load attrs and tiles
         // on the same frame, as that would take
         // too much time and bleed into screen rendering
-        if (xscroll+2) & %00011111 == 0 || xscroll == 0{
+        if draw_counter == 0 && ((xscroll+2) & %00011111 == 0 || xscroll == 0){
             // about to enter a 32 pixel boundary, so
             // draw the attributes
             next_column = current_column + $20
@@ -115,7 +119,7 @@ void nmi() {
                 draw_counter = 1
             }
         }
-        else if (xscroll & %00001111) == 0 || draw_counter > 0{
+        else if (xscroll & %00001111) == 0 || draw_counter > 0 {
             // on a 16 pixel boundary, so
             // load the appropriate tiles
             next_column = current_column + $20
@@ -126,23 +130,63 @@ void nmi() {
             }
             draw_column_with_counter(xscroll/16,nametable ^ %00000001,next_column/2)
         }
+        
+        //update the scroll variable
+        if scrolling_right {
+            xscroll += 2
+            if xscroll == 0 {
+                nametable ^= %00000001
+            }
+        }
+        
+        previous_scroll = 0
+    }
+    else if scrolling_left || (previous_scroll == 1 && draw_counter > 0) {
+        //left scroll logic
+        
+        if scrolling_left {
+            xscroll -= 2
+            if xscroll >= $FE {
+                nametable ^= %00000001
+            }
+        }
+        
+        if draw_counter == 0 && ((xscroll-2) & %00011111 == 0 || xscroll == $FE) {
+            // about to enter a 32 pixel boundary, so
+            // draw the attributes
+            next_column = current_column
+            
+            if xscroll == $FE {
+                load_attr_column((xscroll-2)/32,nametable,next_column/4)
+                draw_counter = 1
+            }
+            else {
+                load_attr_column((xscroll-2)/32 - 1,nametable,next_column/4)
+            }
+        }
+        else if (xscroll & %00001111) == 0 || draw_counter > 0 {
+            // on a 16 pixel boundary, so
+            // load the appropriate tiles
+            next_column = current_column
+
+            draw_column_with_counter(xscroll/16,nametable,next_column/2)
+        }
+        previous_scroll = 1
     }
     
     //update the scroll variable
-    if scrolling_right {
-        xscroll += 2
-        if xscroll == 0 {
-            nametable ^= %00000001
-        }
-    }
-    else if scrolling_left {
-        //TODO: left scrolling
-
-        // xscroll -= 2
-        // if xscroll == $FF {
+    // if scrolling_right {
+        // xscroll += 2
+        // if xscroll == 0 {
             // nametable ^= %00000001
         // }
-    }
+    // }
+    // else if scrolling_left {
+        // xscroll -= 2
+        // if xscroll >= $FE {
+            // nametable ^= %00000001
+        // }
+    // }
     
     ppu_set_scroll(xscroll,0)
     ppu_ctrl = %10010000 | nametable
