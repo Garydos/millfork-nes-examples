@@ -86,6 +86,7 @@ void nmi() {
     
     //either scrolling right or have a column to finish drawing
     if scrolling_right || (previous_scroll == 0 && draw_counter > 0) {
+        
         right_metatile_scroll()
         
         //update the scroll variable
@@ -139,13 +140,12 @@ inline void left_metatile_scroll() {
         // draw the attributes
         next_column = current_column
         
+        load_attr_column(xscroll/32,nametable,next_column/4)
+        
         if xscroll == $FE {
-            load_attr_column(xscroll/32,nametable,next_column/4)
-            //load up the next column as well
+            //if xscroll = $FE then that means we haven't moved the screen yet,
+            //so the next column still needs to be drawn
             draw_counter = 1
-        }
-        else {
-            load_attr_column(xscroll/32 - 1,nametable,next_column/4 - 1)
         }
     }
     else if (xscroll+2) & %00001111 == 0 || draw_counter > 0 {
@@ -183,15 +183,20 @@ inline void right_metatile_scroll() {
         next_column = current_column + $20
         if next_column >= $80 {
             // if we're on the final screen, then wrap around to the beginning
-            next_column -= $7F
+            next_column -= $80
         }
-        load_attr_column((xscroll+2)/32,nametable ^ %00000001,next_column/4)
         
         if xscroll == 0 {
             //if xscroll = 0 then that means we haven't moved the screen yet,
             //so the next column still needs to be drawn
             draw_counter = 1
+            load_attr_column($00,nametable ^ %00000001,next_column/4)
         }
+        else if (xscroll+2) != 0 {
+            //(xcroll+2) == 0 is taken care of by xscroll==0
+            load_attr_column((xscroll+2)/32,nametable ^ %00000001,next_column/4 + 1)
+        }
+        
     }
     else if (xscroll & %00001111) == 0 || draw_counter > 0 {
         // on a 16 pixel boundary, so
@@ -200,7 +205,7 @@ inline void right_metatile_scroll() {
         
         if next_column >= $80 {
             // if we're on the final screen, then wrap around to the beginning
-            next_column -= $7F
+            next_column -= $80
         }
         draw_column_with_counter(xscroll/16,nametable ^ %00000001,next_column/2)
     }
