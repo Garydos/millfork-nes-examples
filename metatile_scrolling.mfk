@@ -104,7 +104,8 @@ void nmi() {
     //set scroll to 0 for now so that the status bar
     //stays still
     ppu_set_scroll(0,0)
-    ppu_ctrl = %10010000 | nametable
+    ppu_ctrl = %10010000 // no need to or the nametable for this one,
+                         // as the status bar should always be at the first nametable
     ppu_mask = %00011100
     
     //now we start checking for a sprite0 hit
@@ -120,7 +121,7 @@ void nmi() {
     }
     
     //now wait for the end of the scanline
-    wait_scanline()
+    wait_cycles($10)
     
     //we have now reached the end of the scanline, and the
     //status bar is done drawing, so draw the rest of
@@ -599,9 +600,8 @@ inline asm void ppu_wait_vblank() {
     ? RTS
 }
 
-inline asm void wait_scanline() {
+inline asm void wait_cycles(byte x) {
     //burn some cycles to wait for the end of the scanline
-    LDX $34
     WaitScanline:
         DEX
         ! BNE WaitScanline
