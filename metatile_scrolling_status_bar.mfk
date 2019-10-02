@@ -17,7 +17,6 @@ byte nametable
 byte current_column
 byte next_column
 byte next_screen
-pointer screen_pointer
 byte xscroll
 bool scrolling_right
 bool scrolling_left
@@ -28,6 +27,9 @@ void main() {
     init_sprites()
     load_palletes()
     clear_status_bar()
+    draw_status_bar()
+    prepare_sprite0()
+    
     xscroll = 0
     nametable = 0
     current_column = 0
@@ -36,8 +38,6 @@ void main() {
     next_screen = 0
     scrolling_right = false
     scrolling_left = false
-    
-    screen_pointer = screen_metatiles.addr
     
     //screen 1
     draw_full_screen(0,0)
@@ -49,8 +49,6 @@ void main() {
     load_attr_column(5,0,5)
     load_attr_column(6,0,6)
     load_attr_column(7,0,7)
-    //screen 2
-    //draw_full_screen(1,16)
     
     ppu_set_scroll(0,0)
     ppu_wait_vblank()
@@ -103,6 +101,31 @@ void nmi() {
         previous_scroll = 1
     }
     
+    //set scroll to 0 for now so that the status bar
+    //stays still
+    ppu_set_scroll(0,0)
+    ppu_ctrl = %10010000 // no need to or the nametable for this one,
+                         // as the status bar should always be at the first nametable
+    ppu_mask = %00011100
+    
+    //now we start checking for a sprite0 hit
+    //so that we know the status bar is done drawing
+    
+    //first wait for the previous frame's sprite0 hit
+    //to clear
+    while (ppu_status & %01000000) != 0 {
+    }
+    
+    //then wait for this frame's sprite0 hit
+    while (ppu_status & %01000000) == 0 {
+    }
+    
+    //now wait for the end of the scanline
+    wait_cycles($10)
+    
+    //we have now reached the end of the scanline, and the
+    //status bar is done drawing, so draw the rest of
+    //the screen with the correct scroll values
     ppu_set_scroll(xscroll,0)
     ppu_ctrl = %10010000 | nametable
     ppu_mask = %00011100
@@ -213,6 +236,84 @@ inline void right_metatile_scroll() {
     }
 }
 
+void draw_status_bar() {
+    //draw the status bar accross both nametables
+    byte i
+    
+    //set ppu address increment to 1 so we can draw the left and right borders
+    //(allows us to draw to the nametable in vertical strips rather than horizontal)
+    ppu_ctrl = %00000000
+    read_ppu_status()
+    
+    //write to first nametable
+    ppu_set_addr(ppu_nametable0+$40)
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($11) //$11 = 'H'
+    ppu_write_data($0E) //$0E = 'E'
+    ppu_write_data($0A) //$0A = 'A'
+    ppu_write_data($15) //$15 = 'L'
+    ppu_write_data($1D) //$1D = 'T'
+    ppu_write_data($11) //$11 = 'H'
+    ppu_write_data($25) //$25 = colon
+    ppu_write_data($34) //$34 = full box
+    ppu_write_data($34) //$34 = full box
+    ppu_write_data($35) //$35 = empty box
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($26) //$26 = lives icon
+    ppu_write_data($27) //$26 = multiply icon
+    ppu_write_data($03) //$03 = 3
+    
+    //write to second nametable
+    ppu_set_addr(ppu_nametable1+$40)
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($11) //$11 = 'H'
+    ppu_write_data($0E) //$0E = 'E'
+    ppu_write_data($0A) //$0A = 'A'
+    ppu_write_data($15) //$15 = 'L'
+    ppu_write_data($1D) //$1D = 'T'
+    ppu_write_data($11) //$11 = 'H'
+    ppu_write_data($25) //$25 = colon
+    ppu_write_data($34) //$34 = full box
+    ppu_write_data($34) //$34 = full box
+    ppu_write_data($35) //$35 = empty box
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($24) //$24 = sky tile
+    ppu_write_data($26) //$26 = lives icon
+    ppu_write_data($27) //$26 = multiply icon
+    ppu_write_data($03) //$03 = 3
+    
+    
+}
+
 void clear_status_bar() {
     //clear the status bar to all sky tiles
     byte i
@@ -306,7 +407,7 @@ void draw_full_screen(byte nametable, byte metatile_column) {
 void draw_column_with_counter(byte screen_column, byte nametable, byte metatiles_column) {
     pointer metatiles_ptr
     
-    screen_column *= 2
+    screen_column *= 2 //convert to metatile column #
     metatiles_ptr = get_metatile_column(metatiles_column)
     
     //set ppu address increment to 32 so we can draw the left and right borders
@@ -315,15 +416,20 @@ void draw_column_with_counter(byte screen_column, byte nametable, byte metatiles
     read_ppu_status()
     
     if draw_counter == 0 || draw_counter == 1 {
+        //draw the first column on the first frame
         draw_column_first_draw(nametable, screen_column, metatiles_ptr)
+        draw_counter = 2
     }
     else if draw_counter == 2 {
+        //draw the second column on the second frame
         draw_column_second_draw(nametable, screen_column, metatiles_ptr)
+        draw_counter = 0
     }
 }
 
 inline void draw_column_first_draw(byte nametable, byte screen_column, pointer metatiles_ptr) {
     //first frame of the column draw
+    //draws the leftmost column of the metatile column
     byte i
     
     if nametable == 0 {
@@ -340,16 +446,16 @@ inline void draw_column_first_draw(byte nametable, byte screen_column, pointer m
     }
 
     //skip to $02 because the metatile data is structured to ignore the
-    //first two metatiles 
+    //first two metatiles, and end before $0F because that byte is a junk
+    //byte as well
     for i,$02,until,$0F {
         draw_metatile_first_column(metatiles_ptr[i])
     }
-    
-    draw_counter = 2
 }
 
 inline void draw_column_second_draw(byte nametable, byte screen_column, pointer metatiles_ptr) {
     //second frame of the column draw
+    //draws the rightmost column of the metatile column
     byte i
     
     if nametable == 0 {
@@ -371,8 +477,6 @@ inline void draw_column_second_draw(byte nametable, byte screen_column, pointer 
     for i,$02,until,$0F {
         draw_metatile_second_column(metatiles_ptr[i])
     }
-    
-    draw_counter = 0
 }
 
 void draw_column(byte screen_column, byte nametable, byte metatiles_column) {
@@ -454,6 +558,16 @@ inline void draw_metatile_second_column(byte metatile) {
     ppu_write_data(metatile_ptr[3])
 }
 
+void prepare_sprite0() {
+    //move sprite0 to overlap with bottom edge
+    //of the status bar in preperation for splitting
+    //the screen
+    oam_buffer[0] = $16
+    oam_buffer[1] = $FF
+    oam_buffer[2] = $00
+    oam_buffer[3] = $08
+}
+
 void init_sprites() {
     byte i
     for i,0,to,255 {
@@ -483,6 +597,14 @@ inline asm void ppu_wait_vblank() {
     vblankwait:
         BIT $2002
         ! BPL vblankwait
+    ? RTS
+}
+
+inline asm void wait_cycles(byte x) {
+    //burn some cycles to wait for the end of the scanline
+    WaitScanline:
+        DEX
+        ! BNE WaitScanline
     ? RTS
 }
 
