@@ -1,11 +1,5 @@
 // compile with -t nes_small_v
 
-//odd bug: scrolling left produces artifacts in
-//the nametable that is not currently being shown when
-//the drawing seam approaches the nametable seam.
-//since the artifacts are never on screen, it shouldn't
-//be an issue, but it's worth noting
-
 import nes_joy
 
 const word ppu_nametable0 = $2000
@@ -150,6 +144,8 @@ inline void left_metatile_scroll() {
             //if xscroll == 0 then that means loading attributes will be taken
             //care of by xscroll == $FE next scroll, so skip it
             load_attr_column(xscroll/32 - 1,nametable,next_column/4 - 1)
+            //we subtract 1 from the 1st and 3rd arguments because we're loading
+            //in attribute tables 1 step ahead in order to keep up with scrolling
         }
     }
     else if (xscroll+2) & %00001111 == 0 || draw_counter > 0 {
@@ -199,6 +195,8 @@ inline void right_metatile_scroll() {
         else if (xscroll+2) != 0 {
             //(xcroll+2) == 0 is taken care of by xscroll==0
             load_attr_column((xscroll+2)/32,nametable ^ %00000001,next_column/4 + 1)
+            //add 1 to 3rd argument because we are loading the column that is one ahead
+            //of our loading seam
         }
         
     }
