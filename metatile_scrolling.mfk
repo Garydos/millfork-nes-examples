@@ -86,96 +86,24 @@ void nmi() {
     
     //either scrolling right or have a column to finish drawing
     if scrolling_right || (previous_scroll == 0 && draw_counter > 0) {
-        // use an else-if here
-        // so that we don't load attrs and tiles
-        // on the same frame, as that would take
-        // too much time and bleed into screen rendering
-        if draw_counter == 0 && ((xscroll+2) & %00011111 == 0 || xscroll == 0){
-            // about to enter a 32 pixel boundary, so
-            // draw the attributes
-            next_column = current_column + $20
-            if next_column >= $80 {
-                // if we're on the final screen, then wrap around to the beginning
-                next_column -= $7F
-            }
-            load_attr_column((xscroll+2)/32,nametable ^ %00000001,next_column/4)
-            
-            if xscroll == 0 {
-                //if xscroll = 0 then that means we haven't moved the screen yet,
-                //so the next column still needs to be drawn
-                draw_counter = 1
-            }
-        }
-        else if (xscroll & %00001111) == 0 || draw_counter > 0 {
-            // on a 16 pixel boundary, so
-            // load the appropriate tiles
-            next_column = current_column + $20
-            
-            if next_column >= $80 {
-                // if we're on the final screen, then wrap around to the beginning
-                next_column -= $7F
-            }
-            draw_column_with_counter(xscroll/16,nametable ^ %00000001,next_column/2)
-        }
+        right_metatile_scroll()
         
         //update the scroll variable
         if scrolling_right {
-            xscroll += 2
-            if xscroll == 0 {
-                next_screen += 1
-                if next_screen >= 4 {
-                    next_screen = 0
-                }
-                nametable ^= %00000001
-            }
-            if xscroll & %00000111 == 0 {
-                current_column = next_screen * $20
-                current_column += xscroll/8
-            }
+            update_scroll_right()
         }
         
         previous_scroll = 0
     }
+    //either scrolling left or have a column to finish drawing
     else if scrolling_left || (previous_scroll == 1 && draw_counter > 0) {
-        //either scrolling left or have a column to finish drawing
         //left scroll logic
         
         if scrolling_left {
-            xscroll -= 2
-            if xscroll >= $FE {
-                next_screen -= 1
-                if next_screen >= 4 {
-                    next_screen = 3
-                }
-                nametable ^= %00000001
-            }
-            if (xscroll+2) & %00000111 == 0 {
-                current_column = next_screen * $20
-                current_column += xscroll/8
-            }
+            update_scroll_left()
         }
         
-        if draw_counter == 0 && (xscroll & %00011111 == 0 || xscroll == $FE){
-            // about to enter a 32 pixel boundary, so
-            // draw the attributes
-            next_column = current_column
-            
-            if xscroll == $FE {
-                load_attr_column(xscroll/32,nametable,next_column/4)
-                //load up the next column as well
-                draw_counter = 1
-            }
-            else {
-                load_attr_column(xscroll/32 - 1,nametable,next_column/4 - 1)
-            }
-        }
-        else if (xscroll+2) & %00001111 == 0 || draw_counter > 0 {
-            // on a 16 pixel boundary, so
-            // load the appropriate tiles
-            next_column = current_column
-
-            draw_column_with_counter(xscroll/16,nametable,next_column/2)
-        }
+        left_metatile_scroll()
         
         previous_scroll = 1
     }
@@ -188,6 +116,94 @@ void nmi() {
 }
 
 void irq() {
+}
+
+inline void update_scroll_left() {
+    xscroll -= 2
+    if xscroll >= $FE {
+        next_screen -= 1
+        if next_screen >= 4 {
+            next_screen = 3
+        }
+        nametable ^= %00000001
+    }
+    if (xscroll+2) & %00000111 == 0 {
+        current_column = next_screen * $20
+        current_column += xscroll/8
+    }
+}
+
+inline void left_metatile_scroll() {
+    if draw_counter == 0 && (xscroll & %00011111 == 0 || xscroll == $FE){
+        // about to enter a 32 pixel boundary, so
+        // draw the attributes
+        next_column = current_column
+        
+        if xscroll == $FE {
+            load_attr_column(xscroll/32,nametable,next_column/4)
+            //load up the next column as well
+            draw_counter = 1
+        }
+        else {
+            load_attr_column(xscroll/32 - 1,nametable,next_column/4 - 1)
+        }
+    }
+    else if (xscroll+2) & %00001111 == 0 || draw_counter > 0 {
+        // on a 16 pixel boundary, so
+        // load the appropriate tiles
+        next_column = current_column
+
+        draw_column_with_counter(xscroll/16,nametable,next_column/2)
+    }
+}
+
+inline void update_scroll_right() {
+    xscroll += 2
+    if xscroll == 0 {
+        next_screen += 1
+        if next_screen >= 4 {
+            next_screen = 0
+        }
+        nametable ^= %00000001
+    }
+    if xscroll & %00000111 == 0 {
+        current_column = next_screen * $20
+        current_column += xscroll/8
+    }
+}
+
+inline void right_metatile_scroll() {
+    // use an else-if here
+    // so that we don't load attrs and tiles
+    // on the same frame, as that would take
+    // too much time and bleed into screen rendering
+    if draw_counter == 0 && ((xscroll+2) & %00011111 == 0 || xscroll == 0){
+        // about to enter a 32 pixel boundary, so
+        // draw the attributes
+        next_column = current_column + $20
+        if next_column >= $80 {
+            // if we're on the final screen, then wrap around to the beginning
+            next_column -= $7F
+        }
+        load_attr_column((xscroll+2)/32,nametable ^ %00000001,next_column/4)
+        
+        if xscroll == 0 {
+            //if xscroll = 0 then that means we haven't moved the screen yet,
+            //so the next column still needs to be drawn
+            draw_counter = 1
+        }
+    }
+    else if (xscroll & %00001111) == 0 || draw_counter > 0 {
+        // on a 16 pixel boundary, so
+        // load the appropriate tiles
+        next_column = current_column + $20
+        
+        if next_column >= $80 {
+            // if we're on the final screen, then wrap around to the beginning
+            next_column -= $7F
+        }
+        draw_column_with_counter(xscroll/16,nametable ^ %00000001,next_column/2)
+    }
 }
 
 void clear_status_bar() {
