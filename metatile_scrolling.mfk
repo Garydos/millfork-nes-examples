@@ -1,12 +1,10 @@
 // compile with -t nes_small_v
 
 //odd bug: scrolling left produces artifacts in
-//the nametable that is not currently being shown.
+//the nametable that is not currently being shown when
+//the drawing seam approaches the nametable seam.
 //since the artifacts are never on screen, it shouldn't
 //be an issue, but it's worth noting
-
-//TODO: fix attribute table bug (when switching scrolling
-//from right to left, attributes can get messed up)
 
 import nes_joy
 
@@ -86,10 +84,8 @@ void nmi() {
         scrolling_right = false
     }
     
+    //either scrolling right or have a column to finish drawing
     if scrolling_right || (previous_scroll == 0 && draw_counter > 0) {
-        // load the rightmost offscreen column by default,
-        // so that there's no glitches when scrolling right
-        
         // use an else-if here
         // so that we don't load attrs and tiles
         // on the same frame, as that would take
@@ -100,7 +96,7 @@ void nmi() {
             next_column = current_column + $20
             if next_column >= $80 {
                 // if we're on the final screen, then wrap around to the beginning
-                next_column -= $80
+                next_column -= $7F
             }
             load_attr_column((xscroll+2)/32,nametable ^ %00000001,next_column/4)
             
@@ -117,7 +113,7 @@ void nmi() {
             
             if next_column >= $80 {
                 // if we're on the final screen, then wrap around to the beginning
-                next_column -= $80
+                next_column -= $7F
             }
             draw_column_with_counter(xscroll/16,nametable ^ %00000001,next_column/2)
         }
@@ -141,6 +137,7 @@ void nmi() {
         previous_scroll = 0
     }
     else if scrolling_left || (previous_scroll == 1 && draw_counter > 0) {
+        //either scrolling left or have a column to finish drawing
         //left scroll logic
         
         if scrolling_left {
@@ -158,26 +155,28 @@ void nmi() {
             }
         }
         
-        if draw_counter == 0 && ((xscroll-2) & %00011111 == 0 || xscroll == $FE) {
+        if draw_counter == 0 && (xscroll & %00011111 == 0 || xscroll == $FE){
             // about to enter a 32 pixel boundary, so
             // draw the attributes
             next_column = current_column
             
             if xscroll == $FE {
-                load_attr_column((xscroll-2)/32,nametable,next_column/4)
+                load_attr_column(xscroll/32,nametable,next_column/4)
+                //load up the next column as well
                 draw_counter = 1
             }
             else {
-                load_attr_column((xscroll-2)/32 - 1,nametable,next_column/4)
+                load_attr_column(xscroll/32 - 1,nametable,next_column/4 - 1)
             }
         }
-        else if (xscroll & %00001111) == 0 || draw_counter > 0 {
+        else if (xscroll+2) & %00001111 == 0 || draw_counter > 0 {
             // on a 16 pixel boundary, so
             // load the appropriate tiles
             next_column = current_column
 
             draw_column_with_counter(xscroll/16,nametable,next_column/2)
         }
+        
         previous_scroll = 1
     }
     
