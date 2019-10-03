@@ -1,6 +1,9 @@
-
 array FT_TEMP   [3]     @$FD
 array FT_VARS   [256]   @$300
+//Change FT_DPCM_OFF to match what the famitone5 binary blob expects,
+//normally $FC00
+const word FT_DPCM_OFF = $FC00
+const word FT_DPCM_PTR = (FT_DPCM_OFF&$3fff)>>6
 
 //------------------------------------------------------------------------------
 // reset APU, initialize FamiTone
@@ -30,6 +33,6 @@ asm void FamiToneSfxInit(byte xy) @$C8CB extern
 //------------------------------------------------------------------------------
 asm void FamiToneUpdate() @$C147 extern
 
-//Binary blob of famitone5, expects to be at $C000
-//Blob compile date: Oct 2nd, 2019
+//Binary blob of famitone5, change it's starting address depending
+//on where it expects to be (normally $C000)
 segment(prgrom) const array famitone5 @ $C000 = file("famitone5.bin")

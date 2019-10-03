@@ -15,7 +15,7 @@ void main() {
     clear_screen()
     
     //set up the music
-    FamiToneInit($01, music.addr)
+    FamiToneInit($01, nesthing_ost.addr)
     FamiToneMusicPlay($00)
     
     ppu_set_scroll(0,0)
@@ -85,13 +85,9 @@ const array pallete = [
   $3C,$10,$37,$0F,$07,$10,$2D,$0F,$0F,$00,$0F,$36,$31,$02,$38,$3C  //sprite palettes
 ]
 
-//NOTE: Music binary file was made by using doug fraker's
-//      famitone5.0 tools (https://github.com/nesdoug/famitone5.0),
-//      compiling a NESASM program with ShanghaiTea.asm in place,
-//      and then finally manually inspecting the rom to copy and
-//      paste the result into a .bin file.  I'll possibly work on
-//      porting the text2data tool over to export .mfk files, since
-//      that's quite a bit of work.
-const array music @ $A800 = file("ShanghaiTea.bin")
+//change @$CAC0 to whatever address you compiled your songs to,
+//usually @$8AC0 if you changed famitone5.bin to start at $8000
+const array nesthing_ost @$CAC0 = file("nesthing_ost.bin")
+const array nesthing_ost_samples @$FC00 = file("nesthing_ost.dmc")
 
 segment(chrrom) const array graphics @ $0000 = file("nesthing.chr")
