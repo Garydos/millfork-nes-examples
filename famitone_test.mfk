@@ -3,52 +3,16 @@
 import nes_joy
 import famitone5
 
-const word ppu_nametable0 = $2000
-const word ppu_nametable1 = $2400
-const word ppu_nametable2 = $2800
-const word ppu_nametable3 = $2C00
-const word ppu_attrtable0 = $23C0
-const word ppu_attrtable1 = $27C0
-const word ppu_attrtable2 = $2BC0
-const word ppu_attrtable3 = $2FC0
+const word ppu_nametable_ram = $2000
 const word ppu_pallete_ram = $3F00
 
 array oam_buffer [256] @$200 // sprite buffer
-byte nametable
-word current_column
-pointer screen_pointer
+
 
 void main() {
     init_sprites()
     load_palletes()
-    nametable = 0
-    current_column = 0
-    screen_pointer = screen1_metatiles.addr
-    
-    //screen 1
-    draw_full_screen(0,0)
-    //screen 2
-    draw_full_screen(1,16)
-    
-    //screen 1 attribute table
-    load_attr_column(0,0,0)
-    load_attr_column(1,0,1)
-    load_attr_column(2,0,2)
-    load_attr_column(3,0,3)
-    load_attr_column(4,0,4)
-    load_attr_column(5,0,5)
-    load_attr_column(6,0,6)
-    load_attr_column(7,0,7)
-    
-    //screen 2 attribute table
-    load_attr_column(0,1,8)
-    load_attr_column(1,1,9)
-    load_attr_column(2,1,10)
-    load_attr_column(3,1,11)
-    load_attr_column(4,1,12)
-    load_attr_column(5,1,13)
-    load_attr_column(6,1,14)
-    load_attr_column(7,1,15)
+    clear_screen()
     
     //set up the music
     FamiToneInit($01, music.addr)
@@ -58,8 +22,6 @@ void main() {
     ppu_wait_vblank()
     ppu_ctrl = %10010000   // enable NMI, sprites from Pattern Table 0, background from Pattern Table 1
     ppu_mask = %00011110   // enable sprites, enable background, no clipping on left side
-    
-    
 
     while(true) {}
 }
@@ -77,154 +39,13 @@ void nmi() {
 void irq() {
 }
 
-void load_attr_column(byte screen_column, byte nametable, byte attrs_column) {
-    byte i
-    pointer attrs_ptr
-    attrs_ptr = get_attrs_column(attrs_column)
-
-    //set ppu address increment to 1 so we can draw the left and right borders
-    //(allows us to draw to the nametable in vertical strips rather than horizontal)
-    ppu_ctrl = %00000000
-
+inline void clear_screen() {
+    word i
     read_ppu_status()
-    for i,0,until,$08 {
-        if nametable == 0 {
-            ppu_set_addr(ppu_attrtable0 + i*8 + screen_column)
-        }
-        else if nametable == 1 {
-            ppu_set_addr(ppu_attrtable1 + i*8 + screen_column)
-        }
-        else if nametable == 2 {
-            ppu_set_addr(ppu_attrtable2 + i*8 + screen_column)
-        }
-        else if nametable == 3 {
-            ppu_set_addr(ppu_attrtable3 + i*8 + screen_column)
-        }
-
-        ppu_write_data(attrs_ptr[i])
+    ppu_set_addr(ppu_nametable_ram)
+    for i,0,until,$3C0 {
+        ppu_write_data($24) //$24 = sky tile
     }
-}
-
-inline pointer get_attrs_column(byte metatiles_column) {
-    pointer attrs_ptr
-    attrs_ptr = metatiles_column
-    attrs_ptr *= $08
-    attrs_ptr += attrs
-    return attrs_ptr
-}
-
-void draw_full_screen(byte nametable, byte metatile_column) {
-    draw_column(0,nametable,metatile_column)
-    metatile_column += 1
-    draw_column(1,nametable,metatile_column)
-    metatile_column += 1
-    draw_column(2,nametable,metatile_column)
-    metatile_column += 1
-    draw_column(3,nametable,metatile_column)
-    metatile_column += 1
-    draw_column(4,nametable,metatile_column)
-    metatile_column += 1
-    draw_column(5,nametable,metatile_column)
-    metatile_column += 1
-    draw_column(6,nametable,metatile_column)
-    metatile_column += 1
-    draw_column(7,nametable,metatile_column)
-    metatile_column += 1
-    draw_column(8,nametable,metatile_column)
-    metatile_column += 1
-    draw_column(9,nametable,metatile_column)
-    metatile_column += 1
-    draw_column(10,nametable,metatile_column)
-    metatile_column += 1
-    draw_column(11,nametable,metatile_column)
-    metatile_column += 1
-    draw_column(12,nametable,metatile_column)
-    metatile_column += 1
-    draw_column(13,nametable,metatile_column)
-    metatile_column += 1
-    draw_column(14,nametable,metatile_column)
-    metatile_column += 1
-    draw_column(15,nametable,metatile_column)
-}
-
-void draw_column(byte screen_column, byte nametable, byte metatiles_column) {
-    byte i
-    pointer metatiles_ptr
-    
-    screen_column *= 2
-    metatiles_ptr = get_metatile_column(metatiles_column)
-    
-    //set ppu address increment to 32 so we can draw the left and right borders
-    //(allows us to draw to the nametable in vertical strips rather than horizontal)
-    ppu_ctrl = %00000100
-    read_ppu_status()
-    
-    if nametable == 0 {
-        ppu_set_addr(ppu_nametable0 + $80 + screen_column)
-    }
-    else if nametable == 1 {
-        ppu_set_addr(ppu_nametable1 + $80 + screen_column)
-    }
-    else if nametable == 2 {
-        ppu_set_addr(ppu_nametable2 + $80 + screen_column)
-    }
-    else if nametable == 3 {
-        ppu_set_addr(ppu_nametable3 + $80 + screen_column)
-    }
-
-    //skip to $02 because the metatile data is structured to ignore the
-    //first two metatiles, and end before $0F because that byte is a junk
-    //byte as well
-    for i,$02,until,$0F {
-        draw_metatile_first_column(metatiles_ptr[i])
-    }
-    
-    
-    if nametable == 0 {
-        ppu_set_addr(ppu_nametable0 + $80 + screen_column + 1)
-    }
-    else if nametable == 1 {
-        ppu_set_addr(ppu_nametable1 + $80 + screen_column + 1)
-    }
-    else if nametable == 2 {
-        ppu_set_addr(ppu_nametable2 + $80 + screen_column + 1)
-    }
-    else if nametable == 3 {
-        ppu_set_addr(ppu_nametable3 + $80 + screen_column + 1)
-    }
-    
-    //skip to $02 because the metatile data is structured to ignore the
-    //first two metatiles, and end before $0F because that byte is a junk
-    //byte as well
-    for i,$02,until,$0F {
-        draw_metatile_second_column(metatiles_ptr[i])
-    }
-}
-
-inline pointer get_metatile_column(byte metatiles_column) {
-    pointer metatiles_ptr
-    metatiles_ptr = metatiles_column
-    metatiles_ptr *= $10
-    metatiles_ptr += screen1_metatiles
-    return metatiles_ptr
-}
-
-inline void draw_metatile_first_column(byte metatile) {
-    pointer metatile_ptr
-    metatile_ptr = metatiles
-    metatile_ptr += metatile*4
-    
-    ppu_write_data(metatile_ptr[0])
-    ppu_write_data(metatile_ptr[1])
-}
-
-inline void draw_metatile_second_column(byte metatile) {
-    pointer metatile_ptr
-    metatile_ptr = metatiles
-    metatile_ptr += metatile*4
-    
-    ppu_write_data(metatile_ptr[2])
-    ppu_write_data(metatile_ptr[3])
 }
 
 void init_sprites() {
@@ -264,221 +85,6 @@ const array pallete = [
   $3C,$10,$37,$0F,$07,$10,$2D,$0F,$0F,$00,$0F,$36,$31,$02,$38,$3C  //sprite palettes
 ]
 
-//define each metatile
-const array metatiles = [
-			//Tile positions:
-			//top-left	bot-left	top-right	bot-right
-            $24,		$24,		$24,		$24, // 		$00, should always be
-                                                     //        all background
-            $30,		$31,		$30,		$31, // 		$01, basic top ground tile
-            $31,		$31,		$31,		$31, //		$02, all ground tile
-            $24,		$32,		$24,		$24, //		$03, floor flower tile
-            $24,		$24,		$24,		$33, //		$04, floor grass tile
-            $24,		$36,		$24,		$37, //		$05, bushes tile A
-            $24,		$30,		$24,		$24 //		$06, single-tile platform
-]
-
-//contains 4 screens worth of metatiles
-//each metatile column is 16 bytes long
-//each metatile column contains 3 bytes of wasted space, two at the top, and one at end
-//(this is a holdover from one of my older projects, you could rearange it so that all
-//the unused bytes are contiguous, you'd just have to change the loops in the draw_column functions)
-const array screen1_metatiles = [
-	//note: all columns will have 3 wasted bytes
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF, 		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF, 		// 15 meta tiles to fill a column plus one filler tile
-
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $03, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $04, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $06, $00, $00, $00, $00,
-		$00, $00, $00, $00, $05, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $01, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $00, $00, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $01, $00, $00, $00,
-		$00, $00, $00, $00, $00, $00, $00, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $01, $00, $00, $00,
-		$00, $00, $00, $00, $00, $00, $00, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $01, $00, $00, $00,
-		$00, $00, $00, $00, $03, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $01, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-
-	 $00, $00, $00, $00, $01, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $01, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $01, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $01, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $03, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $04, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $01, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $01, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $01, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $01, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $00, $00, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $00, $00, $FF,		// 15 meta tiles to fill a column plus one filler tile
-
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $01, $00, $00, $00, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $01, $00, $00, $00, $FF, 		// 15 meta tiles to fill a column plus one filler tile
-        
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF, 		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $03, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $04, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF,		// 15 meta tiles to fill a column plus one filler tile
-	
-	 $00, $00, $00, $00, $00, $00, $00, $00,
-		$00, $00, $00, $00, $00, $01, $02, $FF 		// 15 meta tiles to fill a column plus one filler tile
-
-]
-
 const array attrs = file("attrib.bin")
 //NOTE: Music binary file was made by using doug fraker's
 //      famitone5.0 tools (https://github.com/nesdoug/famitone5.0),
@@ -488,5 +94,7 @@ const array attrs = file("attrib.bin")
 //      porting the text2data tool over to export .mfk files, since
 //      that's quite a bit of work.
 const array music @ $A800 = file("ShanghaiTea.bin")
+
+const array test = [music.addr.lo, music.addr.hi]
 
 segment(chrrom) const array graphics @ $0000 = file("nesthing.chr")
