@@ -85,7 +85,6 @@ const array pallete = [
   $3C,$10,$37,$0F,$07,$10,$2D,$0F,$0F,$00,$0F,$36,$31,$02,$38,$3C  //sprite palettes
 ]
 
-const array attrs = file("attrib.bin")
 //NOTE: Music binary file was made by using doug fraker's
 //      famitone5.0 tools (https://github.com/nesdoug/famitone5.0),
 //      compiling a NESASM program with ShanghaiTea.asm in place,
@@ -94,7 +93,5 @@ const array attrs = file("attrib.bin")
 //      porting the text2data tool over to export .mfk files, since
 //      that's quite a bit of work.
 const array music @ $A800 = file("ShanghaiTea.bin")
-
-const array test = [music.addr.lo, music.addr.hi]
 
 segment(chrrom) const array graphics @ $0000 = file("nesthing.chr")
