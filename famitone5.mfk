@@ -1,14 +1,13 @@
 
-array FT_TEMP   [3]     @$00FD
-array FT_VARS   [224]   @$0300
-array FT_BSS    [32]    @$03E0
+array FT_TEMP   [3]     @$FD
+array FT_VARS   [256]   @$300
 
 //------------------------------------------------------------------------------
 // reset APU, initialize FamiTone
 // in: A   0 for PAL, not 0 for NTSC
 //     X,Y pointer to music data
 //------------------------------------------------------------------------------
-asm void FamiToneInit(byte a, word yx) @$C000 extern
+asm void FamiToneInit(byte a, word xy) @$C000 extern
 //------------------------------------------------------------------------------
 // play music
 // in: A number of subsong
@@ -24,7 +23,7 @@ asm void FamiToneSfxPlay(byte a, byte x) @$C905 extern
 // init sound effects player, set pointer to data
 // in: X,Y is address of sound effects data
 //------------------------------------------------------------------------------
-asm void FamiToneSfxInit(byte yx) @$C8CB extern
+asm void FamiToneSfxInit(byte xy) @$C8CB extern
 //------------------------------------------------------------------------------
 // update FamiTone state, should be called every NMI
 // in: none
@@ -32,5 +31,5 @@ asm void FamiToneSfxInit(byte yx) @$C8CB extern
 asm void FamiToneUpdate() @$C147 extern
 
 //Binary blob of famitone5, expects to be at $C000
-//Binary file last compiled on Oct 2nd, 2019
+//Blob compile date: Oct 2nd, 2019
 segment(prgrom) const array famitone5 @ $C000 = file("famitone5.bin")
