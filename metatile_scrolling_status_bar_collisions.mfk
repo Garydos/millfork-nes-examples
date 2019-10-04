@@ -47,13 +47,19 @@ const byte sprite1_tile = 1
 const byte sprite2_tile = 2
 const byte sprite3_tile = 3
 
+//collision flags
+bool left_collis_flag
+bool right_collis_flag
+bool up_collis_flag
+bool down_collis_flag
+
 
 byte playerx
 byte playery
 sbyte playerxvel
 sbyte playeryvel
-const byte player_width = $10
-const byte player_height = $10
+const byte player_width = 2 //width in tiles (8pixels per tile * 2 = 16 pixels)
+const byte player_height = 2 //height in tiles (8pixels per tile * 2 = 16 pixels)
 
 byte nametable //current nametable
 byte draw_seam_column //column at the draw/scroll seam
@@ -86,6 +92,11 @@ void main() {
     playery = $60
     scrolling_right = false
     scrolling_left = false
+    left_collis_flag = false
+    right_collis_flag = false
+    up_collis_flag = false
+    down_collis_flag = false
+
     
     //screen 1
     draw_full_screen(0,0)
@@ -227,37 +238,103 @@ void irq() {
 void check_player_collisions() {
     byte new_playerx
     byte new_playery
-    byte new_playercolumn
-    word new_playercolumn_offset //must be a word because (xscroll+newplayerx) can overflow
-    bool vert_collis_flag
-    bool horiz_collis_flag
-    
-    vert_collis_flag = false
-    horiz_collis_flag = false
     
     new_playerx = playerx + playerxvel
     new_playery = playery + playeryvel
     
+    check_background_collis(new_playerx, new_playery, player_width, player_height)
     
-    new_playercolumn = current_screen * $20 //leftmost column of current screen
-    new_playercolumn_offset = xscroll
-    new_playercolumn_offset += new_playerx
-    new_playercolumn_offset /= 8
-    new_playercolumn += new_playercolumn_offset.lo
-    if new_playercolumn >= $80 {
-       new_playercolumn -= $80
+    if left_collis_flag {
+        playerxvel += 2
+    }
+    if right_collis_flag {
+        playerxvel -= 2
+    }
+    if up_collis_flag {
+        playeryvel += 2
+    }
+    if down_collis_flag {
+        playeryvel -= 2
     }
     
-    //do the collision stuff, set the vert and horiz
+    reset_collis_flags()
+}
+
+inline void reset_collis_flags() {
+    left_collis_flag = false
+    right_collis_flag = false
+    up_collis_flag = false
+    down_collis_flag = false
+}
+
+byte get_column_from_screenx(byte screenx) {
+    byte new_column
+    word new_column_offset //must be a word because (xscroll+newplayerx) can overflow
+    
+    new_column = current_screen * $20 //leftmost column of current screen
+    new_column_offset = xscroll
+    new_column_offset += screenx
+    new_column_offset /= 8
+    new_column += new_column_offset.lo
+    if new_column >= $80 {
+       new_column -= $80
+    }
+    
+    return new_column
+}
+
+inline byte get_row_from_screeny(byte screeny) {
+    return screeny/8
+}
+
+void check_background_collis(byte screenx, byte screeny, byte spritewidth, byte spriteheight) {
+    //that is spritewidth by spriteheight sprites high is currently touching
+    //checks if a (meta)sprite at screen position (screenx,screeny)
+    //collidable tiles, and sets the appropriate flags if it finds any collisions
+    byte new_column
+    byte new_row
+    
+    //do the collision stuff, set the up,down,left, and right
     //flags depending on left/right or up/down collisions
     
-    _current_tile = get_tile(new_playercolumn, new_playery/8)
+    //for test purposes, just assume the metasprite width and height
+    //is 2, since we're only ever gonna check player collisions for now.
+    //change this if you want to test collisions on metasprites with 
+    //different dimensions
+    //
+    //also, we assume that any tile that is not $24 (sky tile) is collidable
     
-    if horiz_collis_flag {
-        playerxvel = 0
+    new_column = get_column_from_screenx(screenx)
+    new_row = get_row_from_screeny(screeny)
+    _current_tile = get_tile(new_column, new_row)
+    if _current_tile != $24 {
+        //upper left sprite
+        left_collis_flag = true
+        up_collis_flag = true
     }
-    if vert_collis_flag {
-        playeryvel = 0
+    new_column = get_column_from_screenx(screenx)
+    new_row = get_row_from_screeny(screeny+16)
+    _current_tile = get_tile(new_column, new_row)
+    if _current_tile != $24 {
+        //bottom left sprite
+        left_collis_flag = true
+        down_collis_flag = true
+    }
+    new_column = get_column_from_screenx(screenx+16)
+    new_row = get_row_from_screeny(screeny)
+    _current_tile = get_tile(new_column, new_row)
+    if _current_tile != $24 {
+        //top right sprite
+        right_collis_flag = true
+        up_collis_flag = true
+    }
+    new_column = get_column_from_screenx(screenx+16)
+    new_row = get_row_from_screeny(screeny+16)
+    _current_tile = get_tile(new_column, new_row)
+    if _current_tile != $24 {
+        //bottom left sprite
+        right_collis_flag = true
+        down_collis_flag = true
     }
 }
 
