@@ -56,7 +56,7 @@ const byte player_width = $10
 const byte player_height = $10
 
 byte nametable //current nametable
-byte next_draw_column //column at the draw/scroll seam
+byte draw_seam_column //column at the draw/scroll seam
 byte next_column      //column to be drawn to next
 byte current_screen      //screen to load next
 byte xscroll          //screen x scroll value
@@ -78,7 +78,7 @@ void main() {
     
     xscroll = 0
     nametable = 0
-    next_draw_column = 0
+    draw_seam_column = 0
     draw_counter = 0
     previous_scroll = 0
     current_screen = 0
@@ -276,8 +276,8 @@ inline void update_scroll_left() {
         nametable ^= %00000001
     }
     if (xscroll+2) & %00000111 == 0 {
-        next_draw_column = current_screen * $20
-        next_draw_column += xscroll/8
+        draw_seam_column = current_screen * $20
+        draw_seam_column += xscroll/8
     }
 }
 
@@ -285,7 +285,7 @@ inline void left_metatile_scroll() {
     if draw_counter == 0 && (xscroll & %00011111 == 0 || xscroll == $FE){
         // about to enter a 32 pixel boundary, so
         // draw the attributes
-        next_column = next_draw_column
+        next_column = draw_seam_column
         
         if xscroll == $FE {
             //if xscroll = $FE then that means we haven't moved the screen yet,
@@ -304,7 +304,7 @@ inline void left_metatile_scroll() {
     else if (xscroll+2) & %00001111 == 0 || draw_counter > 0 {
         // on a 16 pixel boundary, so
         // load the appropriate tiles
-        next_column = next_draw_column
+        next_column = draw_seam_column
 
         draw_column_with_counter(xscroll/16,nametable,next_column/2)
     }
@@ -320,8 +320,8 @@ inline void update_scroll_right() {
         nametable ^= %00000001
     }
     if xscroll & %00000111 == 0 {
-        next_draw_column = current_screen * $20
-        next_draw_column += xscroll/8
+        draw_seam_column = current_screen * $20
+        draw_seam_column += xscroll/8
     }
 }
 
@@ -333,7 +333,7 @@ inline void right_metatile_scroll() {
     if draw_counter == 0 && ((xscroll+2) & %00011111 == 0 || xscroll == 0){
         // about to enter a 32 pixel boundary, so
         // draw the attributes
-        next_column = next_draw_column + $20
+        next_column = draw_seam_column + $20
         if next_column >= $80 {
             // if we're on the final screen, then wrap around to the beginning
             next_column -= $80
@@ -356,7 +356,7 @@ inline void right_metatile_scroll() {
     else if (xscroll & %00001111) == 0 || draw_counter > 0 {
         // on a 16 pixel boundary, so
         // load the appropriate tiles
-        next_column = next_draw_column + $20
+        next_column = draw_seam_column + $20
         
         if next_column >= $80 {
             // if we're on the final screen, then wrap around to the beginning
