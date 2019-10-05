@@ -120,10 +120,6 @@ void main() {
 void nmi() {
     ppu_oam_dma_write(oam_buffer.addr.hi)
     
-
-    
-    
-    
     //either scrolling right or have a column to finish drawing
     if scrolling_right || (previous_scroll == 0 && draw_counter > 0) {
         
@@ -213,10 +209,12 @@ void nmi() {
     if input_a != 0 {
         scrolling_right = true
         scrolling_left = false
+        playerxvel -= 2
     }
     else if input_b != 0 {
         scrolling_left = true
         scrolling_right = false
+        playerxvel += 2
     }
     else {
         scrolling_left = false
@@ -225,6 +223,7 @@ void nmi() {
     
     check_player_collisions()
     update_player_speed()
+    snap_player_pos_limits()
     update_player_sprites()
     
     //reset velocity
@@ -260,6 +259,22 @@ void check_player_collisions() {
     reset_collis_flags()
 }
 
+inline void snap_player_pos_limits() {
+    //snap the player back to the playable area of the screen
+    if playerx > $F0 {
+        playerx = $F0
+    }
+    if playerx < $08 {
+        playerx = $08
+    }
+    if playery > $D0 {
+        playery = $D0
+    }
+    if playery < $20 {
+        playery = $20 
+    }
+}
+
 inline void reset_collis_flags() {
     left_collis_flag = false
     right_collis_flag = false
@@ -293,6 +308,7 @@ void check_background_collis(byte screenx, byte screeny, byte spritewidth, byte 
     //collidable tiles, and sets the appropriate flags if it finds any collisions
     byte new_column
     byte new_row
+    byte i
     
     //do the collision stuff, set the up,down,left, and right
     //flags depending on left/right or up/down collisions
@@ -304,37 +320,60 @@ void check_background_collis(byte screenx, byte screeny, byte spritewidth, byte 
     //
     //also, we assume that any tile that is not $24 (sky tile) is collidable
     
-    new_column = get_column_from_screenx(screenx)
-    new_row = get_row_from_screeny(screeny)
-    _current_tile = get_tile(new_column, new_row)
-    if _current_tile != $24 {
-        //upper left sprite
-        left_collis_flag = true
-        up_collis_flag = true
+    //REPLACE ALL THIS WITH TWO NESTED FOR LOOPS, increase x by 8 and y by 8
+    //every iteration, then check that column
+    
+    spritewidth *= 8 //convert to pixels
+    spriteheight *= 8 //convert to pixels
+    
+    //LEFT SIDE
+    i = 0
+    while i < spriteheight {
+        new_column = get_column_from_screenx(screenx+2)
+        new_row = get_row_from_screeny(screeny+4+i) //test the middle of the tile
+        _current_tile = get_tile(new_column, new_row)
+        if _current_tile != $24 {
+            left_collis_flag = true
+        }
+        
+        i += 8
     }
-    new_column = get_column_from_screenx(screenx)
-    new_row = get_row_from_screeny(screeny+16)
-    _current_tile = get_tile(new_column, new_row)
-    if _current_tile != $24 {
-        //bottom left sprite
-        left_collis_flag = true
-        down_collis_flag = true
+    
+    //RIGHT SIDE
+    i = 0
+    while i < spriteheight {
+        new_column = get_column_from_screenx(screenx+16-2)
+        new_row = get_row_from_screeny(screeny+4+i)
+        _current_tile = get_tile(new_column, new_row)
+        if _current_tile != $24 {
+            right_collis_flag = true
+        }
+        
+        i += 8
     }
-    new_column = get_column_from_screenx(screenx+16)
-    new_row = get_row_from_screeny(screeny)
-    _current_tile = get_tile(new_column, new_row)
-    if _current_tile != $24 {
-        //top right sprite
-        right_collis_flag = true
-        up_collis_flag = true
+    
+    //UP SIDE
+    i = 0
+    while i < spritewidth {
+        new_column = get_column_from_screenx(screenx+4+i)
+        new_row = get_row_from_screeny(screeny+2)
+        _current_tile = get_tile(new_column, new_row)
+        if _current_tile != $24 {
+            up_collis_flag = true
+        }
+        i += 8
     }
-    new_column = get_column_from_screenx(screenx+16)
-    new_row = get_row_from_screeny(screeny+16)
-    _current_tile = get_tile(new_column, new_row)
-    if _current_tile != $24 {
-        //bottom left sprite
-        right_collis_flag = true
-        down_collis_flag = true
+    
+    //DOWN SIDE
+    i = 0
+    while i < spritewidth {
+        new_column = get_column_from_screenx(screenx+4+i)
+        new_row = get_row_from_screeny(screeny+16-2)
+        _current_tile = get_tile(new_column, new_row)
+        if _current_tile != $24 {
+            down_collis_flag = true
+        }
+        i += 8
     }
 }
 
