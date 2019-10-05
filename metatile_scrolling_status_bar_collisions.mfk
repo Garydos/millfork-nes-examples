@@ -1,5 +1,8 @@
 // compile with -t nes_small_v
 
+//use the dpad to move the player around
+//use the a and b buttons to scroll left and right
+
 import nes_joy
 
 const word ppu_nametable0 = $2000
@@ -205,12 +208,12 @@ void nmi() {
         }
     }
     
-    if input_a != 0 {
+    if input_a != 0  && not(current_screen == 3 && xscroll == 0){
         scrolling_right = true
         scrolling_left = false
         playerxvel -= 2
     }
-    else if input_b != 0 {
+    else if input_b != 0 && not(current_screen == 0 && xscroll == 0){
         scrolling_left = true
         scrolling_right = false
         playerxvel += 2
