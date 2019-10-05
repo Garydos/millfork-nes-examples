@@ -53,13 +53,12 @@ bool right_collis_flag
 bool up_collis_flag
 bool down_collis_flag
 
-
 byte playerx
 byte playery
 sbyte playerxvel
 sbyte playeryvel
-const byte player_width = 2 //width in tiles (8pixels per tile * 2 = 16 pixels)
-const byte player_height = 2 //height in tiles (8pixels per tile * 2 = 16 pixels)
+const byte player_width = 12 //width in pixels
+const byte player_height = 12 //height in pixels
 
 byte nametable //current nametable
 byte draw_seam_column //column at the draw/scroll seam
@@ -221,8 +220,7 @@ void nmi() {
         scrolling_right = false
     }
     
-    check_player_collisions()
-    update_player_speed()
+    check_player_collis_and_update_player_loc()
     snap_player_pos_limits()
     update_player_sprites()
     
@@ -234,28 +232,29 @@ void nmi() {
 void irq() {
 }
 
-void check_player_collisions() {
-    byte new_playerx
-    byte new_playery
+void check_player_collis_and_update_player_loc() {
+    byte old_playerx
+    byte old_playery
     
-    new_playerx = playerx + playerxvel
-    new_playery = playery + playeryvel
+    old_playerx = playerx
+    old_playery = playery
     
-    check_background_collis(new_playerx, new_playery, player_width, player_height)
+    //do vertical collision checking
+    playery += playeryvel
     
-    if left_collis_flag {
-        playerxvel += 2
+    check_background_collis(playerx, playery, player_width, player_height)
+    if up_collis_flag || down_collis_flag || left_collis_flag || right_collis_flag{
+        playery = old_playery
     }
-    if right_collis_flag {
-        playerxvel -= 2
-    }
-    if up_collis_flag {
-        playeryvel += 2
-    }
-    if down_collis_flag {
-        playeryvel -= 2
-    }
+    reset_collis_flags()
     
+    //do horizontal collision checking
+    playerx += playerxvel
+    
+    check_background_collis(playerx, playery, player_width, player_height)
+    if up_collis_flag || down_collis_flag || left_collis_flag || right_collis_flag{
+        playerx = old_playerx
+    }
     reset_collis_flags()
 }
 
@@ -303,77 +302,64 @@ inline byte get_row_from_screeny(byte screeny) {
 }
 
 void check_background_collis(byte screenx, byte screeny, byte spritewidth, byte spriteheight) {
-    //that is spritewidth by spriteheight sprites high is currently touching
-    //checks if a (meta)sprite at screen position (screenx,screeny)
-    //collidable tiles, and sets the appropriate flags if it finds any collisions
-    byte new_column
-    byte new_row
+    //check if the bounding box is colliding with collidable background tiles
+    //on its left and right edges
+    byte new_column1
+    byte new_column2
+    byte new_row1
+    byte new_row2
     byte i
     
-    //do the collision stuff, set the up,down,left, and right
+    //do the collision stuff, set the left and right
     //flags depending on left/right or up/down collisions
-    
-    //for test purposes, just assume the metasprite width and height
-    //is 2, since we're only ever gonna check player collisions for now.
-    //change this if you want to test collisions on metasprites with 
-    //different dimensions
-    //
-    //also, we assume that any tile that is not $24 (sky tile) is collidable
-    
-    //REPLACE ALL THIS WITH TWO NESTED FOR LOOPS, increase x by 8 and y by 8
-    //every iteration, then check that column
-    
-    spritewidth *= 8 //convert to pixels
-    spriteheight *= 8 //convert to pixels
-    
+    //assume that any tile that is not $24 (sky tile) is collidable
+
     //LEFT SIDE
-    i = 0
-    while i < spriteheight {
-        new_column = get_column_from_screenx(screenx+2)
-        new_row = get_row_from_screeny(screeny+4+i) //test the middle of the tile
-        _current_tile = get_tile(new_column, new_row)
+    new_column1 = get_column_from_screenx(screenx)
+    new_row1 = get_row_from_screeny(screeny)
+    new_row2 = get_row_from_screeny(screeny+spriteheight)
+    
+    for i,0,to,new_row2-new_row1{
+        _current_tile = get_tile(new_column1, new_row1+i)
         if _current_tile != $24 {
             left_collis_flag = true
         }
-        
-        i += 8
     }
     
     //RIGHT SIDE
-    i = 0
-    while i < spriteheight {
-        new_column = get_column_from_screenx(screenx+16-2)
-        new_row = get_row_from_screeny(screeny+4+i)
-        _current_tile = get_tile(new_column, new_row)
+    new_column1 = get_column_from_screenx(screenx+spritewidth)
+    new_row1 = get_row_from_screeny(screeny)
+    new_row2 = get_row_from_screeny(screeny+spriteheight)
+    
+    for i,0,to,new_row2-new_row1{
+        _current_tile = get_tile(new_column1, new_row1+i)
         if _current_tile != $24 {
             right_collis_flag = true
         }
-        
-        i += 8
     }
     
     //UP SIDE
-    i = 0
-    while i < spritewidth {
-        new_column = get_column_from_screenx(screenx+4+i)
-        new_row = get_row_from_screeny(screeny+2)
-        _current_tile = get_tile(new_column, new_row)
+    new_row1 = get_row_from_screeny(screeny)
+    new_column1 = get_column_from_screenx(screenx)
+    new_column2 = get_column_from_screenx(screenx+spritewidth)
+    
+    for i,0,to,new_column2-new_column1{
+        _current_tile = get_tile(new_column1+i, new_row1)
         if _current_tile != $24 {
             up_collis_flag = true
         }
-        i += 8
     }
     
     //DOWN SIDE
-    i = 0
-    while i < spritewidth {
-        new_column = get_column_from_screenx(screenx+4+i)
-        new_row = get_row_from_screeny(screeny+16-2)
-        _current_tile = get_tile(new_column, new_row)
+    new_row1 = get_row_from_screeny(screeny+spritewidth)
+    new_column1 = get_column_from_screenx(screenx)
+    new_column2 = get_column_from_screenx(screenx+spritewidth)
+    
+    for i,0,to,new_column2-new_column1{
+        _current_tile = get_tile(new_column1+i, new_row1)
         if _current_tile != $24 {
             down_collis_flag = true
         }
-        i += 8
     }
 }
 
