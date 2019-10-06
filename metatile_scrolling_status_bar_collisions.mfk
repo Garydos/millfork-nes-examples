@@ -130,6 +130,8 @@ void nmi() {
         //update the scroll variable
         if scrolling_right {
             update_scroll_right()
+            //update the position of the screen sprites
+            playerx -= 2
         }
         
         previous_scroll = 0
@@ -140,6 +142,8 @@ void nmi() {
         
         if scrolling_left {
             update_scroll_left()
+            //update the position of the screen sprites
+            playerx += 2
         }
         
         left_metatile_scroll()
@@ -211,12 +215,10 @@ void nmi() {
     if input_a != 0  && not(current_screen == 3 && xscroll == 0){
         scrolling_right = true
         scrolling_left = false
-        playerx -= 2
     }
     else if input_b != 0 && not(current_screen == 0 && xscroll == 0){
         scrolling_left = true
         scrolling_right = false
-        playerx += 2
     }
     else {
         scrolling_left = false
