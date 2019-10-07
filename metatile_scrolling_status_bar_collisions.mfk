@@ -1,7 +1,6 @@
 // compile with -t nes_small_v
 
 //use the dpad to move the player around
-//use the a and b buttons to scroll left and right
 
 import nes_joy
 
