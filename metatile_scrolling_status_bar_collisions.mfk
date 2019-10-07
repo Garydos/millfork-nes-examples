@@ -187,8 +187,6 @@ void nmi() {
             //scroll the screen as well
             scrolling_right = true
             scrolling_left = false
-            //update the position of the screen sprites
-            playerx -= 2
         }
         else {
             scrolling_left = false
@@ -205,8 +203,6 @@ void nmi() {
             //scroll the screen as well
             scrolling_right = false
             scrolling_left = true
-            //update the position of the screen sprites
-            playerx += 2
         }
         else {
             scrolling_left = false
@@ -234,6 +230,14 @@ void nmi() {
     }
     
     check_player_collis_and_update_player_loc()
+    if scrolling_right {
+        //update the position of the screen sprites
+        playerx -= 2
+    }
+    else if scrolling_left {
+        //update the position of the screen sprites
+        playerx += 2
+    }
     snap_player_pos_limits()
     update_player_sprites()
     
