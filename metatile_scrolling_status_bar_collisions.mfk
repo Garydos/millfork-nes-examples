@@ -129,8 +129,6 @@ void nmi() {
         //update the scroll variable
         if scrolling_right {
             update_scroll_right()
-            //update the position of the screen sprites
-            playerx -= 2
         }
         
         previous_scroll = 0
@@ -141,8 +139,6 @@ void nmi() {
         
         if scrolling_left {
             update_scroll_left()
-            //update the position of the screen sprites
-            playerx += 2
         }
         
         left_metatile_scroll()
@@ -191,6 +187,8 @@ void nmi() {
             //scroll the screen as well
             scrolling_right = true
             scrolling_left = false
+            //update the position of the screen sprites
+            playerx -= 2
         }
         else {
             scrolling_left = false
@@ -207,6 +205,8 @@ void nmi() {
             //scroll the screen as well
             scrolling_right = false
             scrolling_left = true
+            //update the position of the screen sprites
+            playerx += 2
         }
         else {
             scrolling_left = false
@@ -267,6 +267,8 @@ void check_player_collis_and_update_player_loc() {
     check_background_collis(playerx, playery, player_width, player_height)
     if up_collis_flag || down_collis_flag || left_collis_flag || right_collis_flag{
         playerx = old_playerx
+        scrolling_left = false
+        scrolling_right = false
     }
     reset_collis_flags()
 }
