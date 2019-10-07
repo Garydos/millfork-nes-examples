@@ -188,6 +188,15 @@ void nmi() {
         if playerx < $F0 {
             playerxvel += 2
         }
+        if playerx >= $78 && not(current_screen == 3 && xscroll == 0) {
+            //scroll the screen as well
+            scrolling_right = true
+            scrolling_left = false
+        }
+        else {
+            scrolling_left = false
+            scrolling_right = false
+        }
     }
     else if input_dx < 0 {
         // scrolling_right = false
@@ -195,6 +204,19 @@ void nmi() {
         if playerx > $08 {
             playerxvel -= 2
         }
+        if playerx <= $78 && not(current_screen == 0 && xscroll == 0) {
+            //scroll the screen as well
+            scrolling_right = false
+            scrolling_left = true
+        }
+        else {
+            scrolling_left = false
+            scrolling_right = false
+        }
+    }
+    else {
+        scrolling_left = false
+        scrolling_right = false
     }
     
     if input_dy > 0 {
@@ -210,19 +232,6 @@ void nmi() {
         if playery > $20 {
             playeryvel -= 2
         }
-    }
-    
-    if input_a != 0  && not(current_screen == 3 && xscroll == 0){
-        scrolling_right = true
-        scrolling_left = false
-    }
-    else if input_b != 0 && not(current_screen == 0 && xscroll == 0){
-        scrolling_left = true
-        scrolling_right = false
-    }
-    else {
-        scrolling_left = false
-        scrolling_right = false
     }
     
     check_player_collis_and_update_player_loc()
