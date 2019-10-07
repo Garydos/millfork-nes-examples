@@ -61,8 +61,14 @@ byte playerx
 byte playery
 byte playerx_frac //fractional part of playerx, can range from 0-3 (first 2 bits)
 byte playery_frac //fractional part of playery, can range from 0-3 (first 2 bits)
+//velocities are added to playerx_frac and playery_frac, so they should be treated as
+//fractional parts (i.e. playerxvel = 4 means playerx will increase by 1, playerxvel = 8
+//means playerx will increase by 2, etc...)
 sbyte playerxvel
 sbyte playeryvel
+//speed added to player when moving
+byte playerx_speed
+byte scroll_speed
 const byte player_width = 12 //width in pixels
 const byte player_height = 12 //height in pixels
 
@@ -95,6 +101,8 @@ void main() {
     current_screen = 0
     playerx = 10
     playery = $60
+    playerx_speed = 8
+    scroll_speed = 2
     scrolling_right = false
     scrolling_left = false
     left_collis_flag = false
@@ -185,7 +193,7 @@ void nmi() {
         // scrolling_right = true
         // scrolling_left = false
         if playerx < $F0 {
-            playerxvel += 8
+            playerxvel += playerx_speed
         }
         if playerx >= $78 && not(current_screen == 3 && xscroll == 0) {
             //scroll the screen as well
@@ -201,7 +209,7 @@ void nmi() {
         // scrolling_right = false
         // scrolling_left = true
         if playerx > $08 {
-            playerxvel -= 8
+            playerxvel -= playerx_speed
         }
         if playerx <= $78 && not(current_screen == 0 && xscroll == 0) {
             //scroll the screen as well
@@ -233,14 +241,39 @@ void nmi() {
         }
     }
     
+    if input_b != 0 {
+        playerx_speed = 8
+    }
+    else {
+        playerx_speed = 4
+    }
+    
     check_player_collis_and_update_player_loc()
     if scrolling_right {
         //update the position of the screen sprites
-        playerx -= 2
+        if xscroll & %00000001 != 0 && playerxvel >= 8{
+            //if we're on an odd frame, then
+            //don't speed up until the next frame
+            //to make sure we don't skip any loading seams
+            playerxvel = 4
+        }
+        scroll_speed = playerxvel >> 2
+        playerx -= playerxvel >> 2
     }
     else if scrolling_left {
         //update the position of the screen sprites
-        playerx += 2
+        playerxvel *= -1
+        
+        if xscroll & %00000001 != 0 && playerxvel >= 8{
+            //if we're on an odd frame, then
+            //don't speed up until the next frame
+            //to make sure we don't skip any loading seams
+            playerxvel = 4
+        }
+        
+        scroll_speed = playerxvel >> 2
+        playerx += playerxvel >> 2
+        playerxvel *= -1
     }
     snap_player_pos_limits()
     update_player_sprites()
@@ -394,7 +427,7 @@ void check_background_collis(byte screenx, byte screeny, byte spritewidth, byte 
 
 inline void update_player_x_speed() {
     playerx_frac += playerxvel
-                            //check for negativeness
+                            //check for non-negativeness
     if playerx_frac >= 4 && ((playerx_frac & %10000000) == 0) {
         playerx += playerx_frac >> 2
         playerx_frac &= %00000011
@@ -409,7 +442,7 @@ inline void update_player_x_speed() {
 
 inline void update_player_y_speed() {
     playery_frac += playeryvel
-                            //check for negativeness
+                            //check for non-negativeness
     if playery_frac >= 4 && ((playery_frac & %10000000) == 0) {
         playery += playery_frac >> 2
         playery_frac &= %00000011
@@ -423,8 +456,10 @@ inline void update_player_y_speed() {
 }
 
 inline void update_scroll_left() {
-    xscroll -= 2
-    if xscroll >= $FE {
+    byte prev_xscroll
+    prev_xscroll = xscroll
+    xscroll -= scroll_speed
+    if (xscroll >= $FE && prev_xscroll != $FF) || (xscroll == $FF) {
         current_screen -= 1
         if current_screen >= 4 {
             current_screen = 3
@@ -467,7 +502,7 @@ inline void left_metatile_scroll() {
 }
 
 inline void update_scroll_right() {
-    xscroll += 2
+    xscroll += scroll_speed
     if xscroll == 0 {
         current_screen += 1
         if current_screen >= 4 {
