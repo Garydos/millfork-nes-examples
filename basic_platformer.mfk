@@ -208,7 +208,8 @@ void nmi() {
         if playerx < $F0 {
             playerxvel += playerx_speed
         }
-        if playerx == $78 && not(current_screen == 3 && xscroll == 0) {
+        if playerx >= $78 && not(current_screen == 3 && xscroll == 0) {
+            playerx = $78
             //scroll the screen as well
             scrolling_right = true
             scrolling_left = false
@@ -224,7 +225,8 @@ void nmi() {
         if playerx > $08 {
             playerxvel -= playerx_speed
         }
-        if playerx == $78 && not(current_screen == 0 && xscroll == 0) {
+        if playerx <= $78 && not(current_screen == 0 && xscroll == 0) {
+            playerx = $78
             //scroll the screen as well
             scrolling_right = false
             scrolling_left = true
