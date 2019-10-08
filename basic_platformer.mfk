@@ -191,7 +191,7 @@ void nmi() {
     read_joy1()
     
     if input_b != 0 {
-        if xscroll & %00000001 == 0 {
+        if xscroll & %00000001 == 0 && playerx & %00000001 == 0 {
             playerx_speed = 8
         }
         else {
@@ -208,7 +208,7 @@ void nmi() {
         if playerx < $F0 {
             playerxvel += playerx_speed
         }
-        if playerx >= $78 && not(current_screen == 3 && xscroll == 0) {
+        if playerx == $78 && not(current_screen == 3 && xscroll == 0) {
             //scroll the screen as well
             scrolling_right = true
             scrolling_left = false
@@ -224,7 +224,7 @@ void nmi() {
         if playerx > $08 {
             playerxvel -= playerx_speed
         }
-        if playerx <= $78 && not(current_screen == 0 && xscroll == 0) {
+        if playerx == $78 && not(current_screen == 0 && xscroll == 0) {
             //scroll the screen as well
             scrolling_right = false
             scrolling_left = true
@@ -267,6 +267,7 @@ void nmi() {
         playerx += playerxvel >> 2
         playerxvel *= -1
     }
+
     snap_player_pos_limits()
     update_player_sprites()
     
