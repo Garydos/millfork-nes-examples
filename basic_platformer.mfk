@@ -1,4 +1,4 @@
-// compile with -t nes_small_v and at least -O4
+// compile with -t nes_small_v and at least -O1, preferably -O4
 
 //use the dpad to move the player around
 //use a to jump
@@ -99,8 +99,10 @@ bool changed_screen
 //How many pixels before a new attribute table column
 //is needed should we load them?  This is necessary because loading
 //an attribute column and a tile column at the same time takes too
-//much time for the nmi
-const byte attr_draw_offset = 2
+//much time for the nmi.
+//Note: this should be changed to be greater than or equal to the max
+//x velocity of the player
+const byte attr_draw_offset = 4
 
 //variables for debugging, find these
 //in fceux's hex editor and watch them
@@ -216,12 +218,7 @@ void nmi() {
     read_joy1()
     
     if input_b != 0 {
-        if xscroll & %00000001 == 0 && playerx & %00000001 == 0 {
-            playerx_speed = 8
-        }
-        else {
-            playerx_speed = 4
-        }
+        playerx_speed = 8
     }
     else {
         playerx_speed = 4
@@ -282,16 +279,36 @@ void nmi() {
     }
     
     check_player_collis_and_update_player_loc()
+    
+    //set right screen scroll limits
+    if current_screen == 3 {
+        xscroll = 0
+        scrolling_right = false
+    }
+    
     if scrolling_right {
         //update the position of the screen sprites
         scroll_speed = playerxvel >> 2
+        //fix scroll_speed so that we never overshoot the right scroll limit
+        if current_screen == 2 && scroll_speed + xscroll < xscroll {
+            scroll_speed = ($FF - xscroll) + 1
+        }
         playerx -= scroll_speed
     }
     else if scrolling_left {
         //update the position of the screen sprites
         playerxvel *= -1
         scroll_speed = playerxvel >> 2
-        playerx += scroll_speed
+        //set screen scroll left limit
+        if current_screen == 0 {
+            if xscroll - scroll_speed > xscroll {
+                scrolling_left = false
+                xscroll = 0
+            }
+        }
+        else {
+            playerx += scroll_speed
+        }
         playerxvel *= -1
     }
 
