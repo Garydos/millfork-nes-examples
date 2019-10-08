@@ -277,6 +277,9 @@ void nmi() {
         // playerx = $78
         //update the position of the screen sprites
         scroll_speed = $78 - playerx
+        if current_screen == 0 && xscroll - scroll_speed > xscroll {
+            scroll_speed = xscroll
+        }
         //set screen scroll left limit
         playerx += scroll_speed
         //scroll the screen as well
