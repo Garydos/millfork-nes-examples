@@ -1,4 +1,4 @@
-// compile with -t nes_small_v
+// compile with -t nes_small_v and at least -O4
 
 //use the dpad to move the player around
 //use a to jump
@@ -21,6 +21,8 @@ const word ppu_attrtable3 = $2FC0
 const word ppu_pallete_ram = $3F00
 
 array oam_buffer [256] @$200 // sprite buffer
+
+byte temp //temp variable for assembly use
 
 //constant offsets for oam_buffer
 //so we can draw the player metasprite easily,
@@ -77,6 +79,7 @@ const byte player_width = 12 //width in pixels
 const byte player_height = 12 //height in pixels
 
 byte nametable //current nametable
+byte draw_nametable //the nametable we want to draw on
 byte draw_seam_column //column at the draw/scroll seam
 byte next_column      //column to be drawn to next
 byte current_screen      //screen to load next
@@ -161,7 +164,7 @@ void nmi() {
         right_metatile_scroll()
         
         //update the scroll variable
-        if scrolling_right {
+        if scrolling_right{
             update_scroll_right()
         }
         
@@ -171,11 +174,12 @@ void nmi() {
     else if scrolling_left || (previous_scroll == 1 && draw_counter > 0) {
         //left scroll logic
         
+        left_metatile_scroll()
+    
+        
         if scrolling_left {
             update_scroll_left()
         }
-        
-        left_metatile_scroll()
         
         previous_scroll = 1
     }
@@ -478,7 +482,6 @@ inline void update_scroll_left() {
     
     passed_column_boundary(xscroll, prev_xscroll)
     passed_meta_column_boundary(xscroll, prev_xscroll)
-    // passed_attr_column_boundary(xscroll, prev_xscroll)
     
     if xscroll > prev_xscroll {
         //we overflowed to a new screen
@@ -487,43 +490,53 @@ inline void update_scroll_left() {
             current_screen = 3
         }
         nametable ^= %00000001
-        changed_screen = true
-    }
-    else {
-        changed_screen = false
     }
     if changed_column {
         draw_seam_column = current_screen * $20
         draw_seam_column += xscroll/8
     }
+    
+    //deal with the attribute column offset
+    xscroll -= attr_draw_offset
+    prev_xscroll -= attr_draw_offset
+    
+    if xscroll > prev_xscroll {
+        changed_screen = true
+        draw_nametable = nametable ^ %00000001
+    }
+    else {
+        changed_screen = false
+        draw_nametable = nametable
+    }
+
+    passed_attr_column_boundary(xscroll, prev_xscroll)
+    
+    xscroll += attr_draw_offset
+    prev_xscroll += attr_draw_offset
 }
 
 inline void left_metatile_scroll() {
-    if draw_counter == 0 && (xscroll & %00011111 == 0 || xscroll == $FE){
+    if draw_counter == 0 && changed_attr_column{
         // about to enter a 32 pixel boundary, so
         // draw the attributes
         next_column = draw_seam_column
         
-        if xscroll == $FE {
-            //if xscroll = $FE then that means we haven't moved the screen yet,
-            //so the next column still needs to be drawn
-            draw_counter = 1
-            load_attr_column($07,nametable,next_column/4)
+        if changed_screen {
+            //we've overflowed onto a new screen, so draw on the right nametable
+            load_attr_column($07,draw_nametable,next_column/4 - 1)
         }
-        else if (xscroll != 0){
-            //if xscroll == 0 then that means loading attributes will be taken
-            //care of by xscroll == $FE next scroll, so skip it
-            load_attr_column(xscroll/32 - 1,nametable,next_column/4 - 1)
+        else {
+            load_attr_column(xscroll/32 - 1,draw_nametable,next_column/4 - 1)
             //we subtract 1 from the 1st and 3rd arguments because we're loading
             //in attribute tables 1 step ahead in order to keep up with scrolling
         }
     }
-    else if (xscroll+2) & %00001111 == 0 || draw_counter > 0 {
+    else if changed_column || draw_counter > 0 {
         // on a 16 pixel boundary, so
         // load the appropriate tiles
         next_column = draw_seam_column
 
-        draw_column_with_counter(xscroll/16,nametable,next_column/2)
+        draw_column_with_counter(xscroll/16,draw_nametable,next_column/2)
     }
 }
 
@@ -533,7 +546,6 @@ inline void update_scroll_right() {
     
     passed_column_boundary(xscroll, prev_xscroll)
     passed_meta_column_boundary(xscroll, prev_xscroll)
-    passed_attr_column_boundary(xscroll+attr_draw_offset, prev_xscroll+attr_draw_offset)
     
     if xscroll < prev_xscroll {
         //we overflowed to a new screen
@@ -552,6 +564,24 @@ inline void update_scroll_right() {
         draw_seam_column = current_screen * $20
         draw_seam_column += xscroll/8
     }
+    
+    //deal with the attribute column offset
+    xscroll += attr_draw_offset
+    prev_xscroll += attr_draw_offset
+    
+    if xscroll < prev_xscroll {
+        changed_screen = true
+        draw_nametable = nametable
+    }
+    else {
+        changed_screen = false
+        draw_nametable = nametable ^ %00000001
+    }
+
+    passed_attr_column_boundary(xscroll, prev_xscroll)
+    
+    xscroll -= attr_draw_offset
+    prev_xscroll -= attr_draw_offset
 }
 
 void passed_column_boundary(byte xscroll_new, byte xscroll_old) {
@@ -600,10 +630,10 @@ inline void right_metatile_scroll() {
         
         if (xscroll+attr_draw_offset) < (prev_xscroll+attr_draw_offset) {
             //we've overflowed onto a new screen, so draw on the right nametable
-            load_attr_column((xscroll+attr_draw_offset)/32,nametable,next_column/4 + 1)
+            load_attr_column((xscroll+attr_draw_offset)/32,draw_nametable,next_column/4 + 1)
         }
         else {
-            load_attr_column((xscroll+attr_draw_offset)/32,nametable ^ %00000001,next_column/4 + 1)
+            load_attr_column((xscroll+attr_draw_offset)/32,draw_nametable,next_column/4 + 1)
             //add 1 to 3rd argument because we are loading the column that is one ahead
             //of our loading seam
         }
@@ -617,7 +647,7 @@ inline void right_metatile_scroll() {
             // if we're on the final screen, then wrap around to the beginning
             next_column -= $80
         }
-        draw_column_with_counter(xscroll/16,nametable ^ %00000001,next_column/2)
+        draw_column_with_counter(xscroll/16,draw_nametable,next_column/2)
     }
 }
 
@@ -729,7 +759,7 @@ void load_attr_column(byte screen_column, byte nametable, byte attrs_column) {
     ppu_ctrl = %00000000
 
     read_ppu_status()
-    for i,0,until,$08 {
+    for i,1,until,$08 {
         if nametable == 0 {
             ppu_set_addr(ppu_attrtable0 + i*8 + screen_column)
         }
@@ -747,10 +777,70 @@ void load_attr_column(byte screen_column, byte nametable, byte attrs_column) {
     }
 }
 
+void load_attr_column_with_counter(byte screen_column, byte nametable, byte attrs_column) {
+    pointer attrs_ptr
+    attrs_ptr = get_attrs_column(attrs_column)
+
+    //set ppu address increment to 1 so we can draw the left and right borders
+    //(allows us to draw to the nametable in vertical strips rather than horizontal)
+    ppu_ctrl = %00000000
+    read_ppu_status()
+
+    if draw_counter == 0 || draw_counter == 3 {
+        load_attr_first_draw(nametable, screen_column, attrs_ptr)
+    }
+    else if draw_counter == 4 {
+        load_attr_second_draw(nametable, screen_column, attrs_ptr)
+    }
+}
+
+inline void load_attr_first_draw(byte nametable, byte screen_column, pointer attrs_ptr) {
+    byte i
+    for i,1,until,$05 {
+        if nametable == 0 {
+            ppu_set_addr(ppu_attrtable0 + i*8 + screen_column)
+        }
+        else if nametable == 1 {
+            ppu_set_addr(ppu_attrtable1 + i*8 + screen_column)
+        }
+        else if nametable == 2 {
+            ppu_set_addr(ppu_attrtable2 + i*8 + screen_column)
+        }
+        else if nametable == 3 {
+            ppu_set_addr(ppu_attrtable3 + i*8 + screen_column)
+        }
+
+        ppu_write_data(attrs_ptr[i])
+    }
+    draw_counter = 4
+}
+
+inline void load_attr_second_draw(byte nametable, byte screen_column, pointer attrs_ptr) {
+    byte i
+    for i,5,until,$08 {
+        if nametable == 0 {
+            ppu_set_addr(ppu_attrtable0 + i*8 + screen_column)
+        }
+        else if nametable == 1 {
+            ppu_set_addr(ppu_attrtable1 + i*8 + screen_column)
+        }
+        else if nametable == 2 {
+            ppu_set_addr(ppu_attrtable2 + i*8 + screen_column)
+        }
+        else if nametable == 3 {
+            ppu_set_addr(ppu_attrtable3 + i*8 + screen_column)
+        }
+
+        ppu_write_data(attrs_ptr[i])
+    }
+    draw_counter = 0
+}
+
+
 inline pointer get_attrs_column(byte metatiles_column) {
     pointer attrs_ptr
     attrs_ptr = metatiles_column
-    attrs_ptr *= $08
+    attrs_ptr <<= 3 // *= $08
     attrs_ptr += attrs
     return attrs_ptr
 }
@@ -792,7 +882,7 @@ void draw_full_screen(byte nametable, byte metatile_column) {
 void draw_column_with_counter(byte screen_column, byte nametable, byte metatiles_column) {
     pointer metatiles_ptr
     
-    screen_column *= 2 //convert to metatile column #
+    screen_column <<= 1 // *= 2, convert to metatile column #
     metatiles_ptr = get_metatile_column(metatiles_column)
     
     //set ppu address increment to 32 so we can draw the left and right borders
@@ -868,7 +958,7 @@ void draw_column(byte screen_column, byte nametable, byte metatiles_column) {
     byte i
     pointer metatiles_ptr
     
-    screen_column *= 2
+    screen_column <<= 1 // *= 2
     metatiles_ptr = get_metatile_column(metatiles_column)
     
     //set ppu address increment to 32 so we can draw the left and right borders
@@ -920,7 +1010,7 @@ void draw_column(byte screen_column, byte nametable, byte metatiles_column) {
 inline pointer get_metatile_column(byte metatiles_column) {
     pointer metatiles_ptr
     metatiles_ptr = metatiles_column
-    metatiles_ptr *= $10
+    metatiles_ptr <<= 4 // *= $10
     metatiles_ptr += screen_metatiles
     return metatiles_ptr
 }
