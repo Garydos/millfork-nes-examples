@@ -189,6 +189,19 @@ void nmi() {
 
     //game logic goes here
     read_joy1()
+    
+    if input_b != 0 {
+        if xscroll & %00000001 == 0 {
+            playerx_speed = 8
+        }
+        else {
+            playerx_speed = 4
+        }
+    }
+    else {
+        playerx_speed = 4
+    }
+    
     if input_dx > 0 {
         // scrolling_right = true
         // scrolling_left = false
@@ -241,36 +254,15 @@ void nmi() {
         }
     }
     
-    if input_b != 0 {
-        playerx_speed = 8
-    }
-    else {
-        playerx_speed = 4
-    }
-    
     check_player_collis_and_update_player_loc()
     if scrolling_right {
         //update the position of the screen sprites
-        if xscroll & %00000001 != 0 && playerxvel >= 8{
-            //if we're on an odd frame, then
-            //don't speed up until the next frame
-            //to make sure we don't skip any loading seams
-            playerxvel = 4
-        }
         scroll_speed = playerxvel >> 2
         playerx -= playerxvel >> 2
     }
     else if scrolling_left {
         //update the position of the screen sprites
         playerxvel *= -1
-        
-        if xscroll & %00000001 != 0 && playerxvel >= 8{
-            //if we're on an odd frame, then
-            //don't speed up until the next frame
-            //to make sure we don't skip any loading seams
-            playerxvel = 4
-        }
-        
         scroll_speed = playerxvel >> 2
         playerx += playerxvel >> 2
         playerxvel *= -1
