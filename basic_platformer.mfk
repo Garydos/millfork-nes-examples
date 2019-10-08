@@ -102,7 +102,7 @@ bool changed_screen
 //much time for the nmi.
 //Note: this should be changed to be greater than or equal to the max
 //x velocity of the player
-const byte attr_draw_offset = 4
+const byte attr_draw_offset = 8
 
 //variables for debugging, find these
 //in fceux's hex editor and watch them
@@ -218,7 +218,7 @@ void nmi() {
     read_joy1()
     
     if input_b != 0 {
-        playerx_speed = 8
+        playerx_speed = 12
     }
     else {
         playerx_speed = 4
@@ -230,32 +230,12 @@ void nmi() {
         if playerx < $F0 {
             playerxvel += playerx_speed
         }
-        if playerx >= $78 && not(current_screen == 3 && xscroll == 0) {
-            playerx = $78
-            //scroll the screen as well
-            scrolling_right = true
-            scrolling_left = false
-        }
-        else {
-            scrolling_left = false
-            scrolling_right = false
-        }
     }
     else if input_dx < 0 {
         // scrolling_right = false
         // scrolling_left = true
         if playerx > $08 {
             playerxvel -= playerx_speed
-        }
-        if playerx <= $78 && not(current_screen == 0 && xscroll == 0) {
-            playerx = $78
-            //scroll the screen as well
-            scrolling_right = false
-            scrolling_left = true
-        }
-        else {
-            scrolling_left = false
-            scrolling_right = false
         }
     }
     else {
@@ -280,36 +260,32 @@ void nmi() {
     
     check_player_collis_and_update_player_loc()
     
-    //set right screen scroll limits
-    if current_screen == 3 {
-        xscroll = 0
-        scrolling_right = false
-    }
-    
-    if scrolling_right {
+    if playerx > $78 && not(current_screen == 3 && xscroll == 0) {
+        // playerx = $78
         //update the position of the screen sprites
-        scroll_speed = playerxvel >> 2
+        scroll_speed = playerx - $78
         //fix scroll_speed so that we never overshoot the right scroll limit
         if current_screen == 2 && scroll_speed + xscroll < xscroll {
             scroll_speed = ($FF - xscroll) + 1
         }
         playerx -= scroll_speed
+        //scroll the screen as well
+        scrolling_right = true
+        scrolling_left = false
     }
-    else if scrolling_left {
+    else if playerx < $78 && not(current_screen == 0 && xscroll == 0) {
+        // playerx = $78
         //update the position of the screen sprites
-        playerxvel *= -1
-        scroll_speed = playerxvel >> 2
+        scroll_speed = $78 - playerx
         //set screen scroll left limit
-        if current_screen == 0 {
-            if xscroll - scroll_speed > xscroll {
-                scrolling_left = false
-                xscroll = 0
-            }
-        }
-        else {
-            playerx += scroll_speed
-        }
-        playerxvel *= -1
+        playerx += scroll_speed
+        //scroll the screen as well
+        scrolling_right = false
+        scrolling_left = true
+    }
+    else {
+        scrolling_left = false
+        scrolling_right = false
     }
 
     snap_player_pos_limits()
