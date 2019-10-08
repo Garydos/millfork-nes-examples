@@ -4,6 +4,10 @@
 //use a to jump
 //use b to dash
 
+//TODO: rework scrolling so that it works even
+//if you skip over the specific xscroll values it needs
+//to detect a new column
+
 import nes_joy
 
 const word ppu_nametable0 = $2000
@@ -77,10 +81,23 @@ byte draw_seam_column //column at the draw/scroll seam
 byte next_column      //column to be drawn to next
 byte current_screen      //screen to load next
 byte xscroll          //screen x scroll value
+byte prev_xscroll     //previous xcroll value
 bool scrolling_right
 bool scrolling_left
 byte previous_scroll //0 = scrolling right, 1 = scrolling left
 byte draw_counter
+
+//flags for drawing
+bool changed_column
+bool changed_meta_column
+bool changed_attr_column
+bool changed_screen
+
+//How many pixels before a new attribute table column
+//is needed should we load them?  This is necessary because loading
+//an attribute column and a tile column at the same time takes too
+//much time for the nmi
+const byte attr_draw_offset = 2
 
 //variables for debugging, find these
 //in fceux's hex editor and watch them
@@ -109,10 +126,14 @@ void main() {
     right_collis_flag = false
     up_collis_flag = false
     down_collis_flag = false
-
+    changed_column = false
+    changed_meta_column = false
+    changed_attr_column = false
+    changed_screen = false
     
-    //screen 1
+    //screen 1 + screen 2 leftmost column
     draw_full_screen(0,0)
+    draw_column(0,1,16)
     load_attr_column(0,0,0)
     load_attr_column(1,0,1)
     load_attr_column(2,0,2)
@@ -121,6 +142,7 @@ void main() {
     load_attr_column(5,0,5)
     load_attr_column(6,0,6)
     load_attr_column(7,0,7)
+    load_attr_column(0,1,8)
     
     ppu_set_scroll(0,0)
     ppu_wait_vblank()
@@ -260,13 +282,13 @@ void nmi() {
     if scrolling_right {
         //update the position of the screen sprites
         scroll_speed = playerxvel >> 2
-        playerx -= playerxvel >> 2
+        playerx -= scroll_speed
     }
     else if scrolling_left {
         //update the position of the screen sprites
         playerxvel *= -1
         scroll_speed = playerxvel >> 2
-        playerx += playerxvel >> 2
+        playerx += scroll_speed
         playerxvel *= -1
     }
 
@@ -451,7 +473,6 @@ inline void update_player_y_speed() {
 }
 
 inline void update_scroll_left() {
-    byte prev_xscroll
     prev_xscroll = xscroll
     xscroll -= scroll_speed
     if (xscroll >= $FE && prev_xscroll != $FF) || (xscroll == $FF) {
@@ -497,17 +518,59 @@ inline void left_metatile_scroll() {
 }
 
 inline void update_scroll_right() {
+    prev_xscroll = xscroll
     xscroll += scroll_speed
-    if xscroll == 0 {
+    
+    passed_column_boundary(xscroll, prev_xscroll)
+    passed_meta_column_boundary(xscroll, prev_xscroll)
+    passed_attr_column_boundary(xscroll+attr_draw_offset, prev_xscroll+attr_draw_offset)
+    
+    if xscroll < prev_xscroll {
+        //we overflowed to a new screen
         current_screen += 1
         if current_screen >= 4 {
             current_screen = 0
         }
         nametable ^= %00000001
+        changed_screen = true
     }
-    if xscroll & %00000111 == 0 {
+    else {
+        changed_screen = false
+    }
+    if changed_column {
+        //we've passed a column boundary, update our current column
         draw_seam_column = current_screen * $20
         draw_seam_column += xscroll/8
+    }
+}
+
+void passed_column_boundary(byte xscroll_new, byte xscroll_old) {
+    //compares the two, and then sets changed_column appropriately
+    if (xscroll_new & %11111000) != (xscroll_old & %11111000) {
+        changed_column = true
+    }
+    else {
+        changed_column = false
+    }
+}
+
+void passed_meta_column_boundary(byte xscroll_new, byte xscroll_old) {
+    //compares the two, and then sets changed_meta_column appropriately
+    if (xscroll_new & %11110000) != (xscroll_old & %11110000) {
+        changed_meta_column = true
+    }
+    else {
+        changed_meta_column = false
+    }
+}
+
+void passed_attr_column_boundary(byte xscroll_new, byte xscroll_old) {
+    //compares the two, and then sets changed_meta_column appropriately
+    if (xscroll_new & %11100000) != (xscroll_old & %11100000) {
+        changed_attr_column = true
+    }
+    else {
+        changed_attr_column = false
     }
 }
 
@@ -516,7 +579,7 @@ inline void right_metatile_scroll() {
     // so that we don't load attrs and tiles
     // on the same frame, as that would take
     // too much time and bleed into screen rendering
-    if draw_counter == 0 && ((xscroll+2) & %00011111 == 0 || xscroll == 0){
+    if draw_counter == 0 && changed_attr_column {
         // about to enter a 32 pixel boundary, so
         // draw the attributes
         next_column = draw_seam_column + $20
@@ -524,22 +587,17 @@ inline void right_metatile_scroll() {
             // if we're on the final screen, then wrap around to the beginning
             next_column -= $80
         }
-        
-        if xscroll == 0 {
-            //if xscroll = 0 then that means we haven't moved the screen yet,
-            //so the next column still needs to be drawn
-            draw_counter = 1
-            load_attr_column($00,nametable ^ %00000001,next_column/4)
+        if (xscroll+attr_draw_offset) < prev_xscroll {
+            //we've overflowed onto a new screen, so draw on the right nametable
+            load_attr_column((xscroll+attr_draw_offset)/32,nametable,next_column/4 + 1)
         }
-        else if (xscroll+2) != 0 {
-            //(xcroll+2) == 0 is taken care of by xscroll==0
-            load_attr_column((xscroll+2)/32,nametable ^ %00000001,next_column/4 + 1)
+        else {
+            load_attr_column((xscroll+attr_draw_offset)/32,nametable ^ %00000001,next_column/4 + 1)
             //add 1 to 3rd argument because we are loading the column that is one ahead
             //of our loading seam
         }
-        
     }
-    else if (xscroll & %00001111) == 0 || draw_counter > 0 {
+    else if changed_meta_column || draw_counter > 0 {
         // on a 16 pixel boundary, so
         // load the appropriate tiles
         next_column = draw_seam_column + $20
