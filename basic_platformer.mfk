@@ -475,14 +475,24 @@ inline void update_player_y_speed() {
 inline void update_scroll_left() {
     prev_xscroll = xscroll
     xscroll -= scroll_speed
-    if (xscroll >= $FE && prev_xscroll != $FF) || (xscroll == $FF) {
+    
+    passed_column_boundary(xscroll, prev_xscroll)
+    passed_meta_column_boundary(xscroll, prev_xscroll)
+    // passed_attr_column_boundary(xscroll, prev_xscroll)
+    
+    if xscroll > prev_xscroll {
+        //we overflowed to a new screen
         current_screen -= 1
         if current_screen >= 4 {
             current_screen = 3
         }
         nametable ^= %00000001
+        changed_screen = true
     }
-    if (xscroll+2) & %00000111 == 0 {
+    else {
+        changed_screen = false
+    }
+    if changed_column {
         draw_seam_column = current_screen * $20
         draw_seam_column += xscroll/8
     }
@@ -587,7 +597,8 @@ inline void right_metatile_scroll() {
             // if we're on the final screen, then wrap around to the beginning
             next_column -= $80
         }
-        if (xscroll+attr_draw_offset) < prev_xscroll {
+        
+        if (xscroll+attr_draw_offset) < (prev_xscroll+attr_draw_offset) {
             //we've overflowed onto a new screen, so draw on the right nametable
             load_attr_column((xscroll+attr_draw_offset)/32,nametable,next_column/4 + 1)
         }
