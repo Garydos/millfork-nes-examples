@@ -161,12 +161,12 @@ void nmi() {
     //either scrolling right or have a column to finish drawing
     if scrolling_right || (previous_scroll == 0 && draw_counter > 0) {
         
-        right_metatile_scroll()
-        
         //update the scroll variable
         if scrolling_right{
             update_scroll_right()
         }
+        
+        right_metatile_scroll()
         
         previous_scroll = 0
     }
@@ -174,13 +174,12 @@ void nmi() {
     else if scrolling_left || (previous_scroll == 1 && draw_counter > 0) {
         //left scroll logic
         
-        left_metatile_scroll()
-    
-        
         if scrolling_left {
             update_scroll_left()
         }
         
+        left_metatile_scroll()
+    
         previous_scroll = 1
     }
     
