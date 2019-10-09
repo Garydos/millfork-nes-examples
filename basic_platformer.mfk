@@ -55,8 +55,15 @@ const byte sprite1_tile = 1
 const byte sprite2_tile = 2
 const byte sprite3_tile = 3
 
-//collision flag
+//collision flags
 bool collis_flag
+bool down_collis_flag
+bool up_collis_flag
+
+//player physics flags
+bool on_ground
+bool jumping
+bool can_jump
 
 byte playerx
 byte playery
@@ -75,10 +82,10 @@ byte scroll_speed
 const byte player_width = 12 //width in pixels
 const byte player_height = 12 //height in pixels
 const byte player_max_xvel = 10
-const byte player_max_xvel_neg = -11
+const byte player_max_xvel_neg = -10
 const byte player_x_friction = 8
 const byte player_max_yvel = 20
-const byte player_max_yvel_neg = -21
+const byte player_max_yvel_neg = -20
 const byte player_gravity_accel = 4
 
 byte nametable //current nametable
@@ -133,10 +140,15 @@ void main() {
     scrolling_right = false
     scrolling_left = false
     collis_flag = false
+    down_collis_flag = false
+    up_collis_flag = false
     changed_column = false
     changed_meta_column = false
     changed_attr_column = false
     changed_screen = false
+    on_ground = false
+    jumping = false
+    can_jump = true
     
     //screen 1 + screen 2 leftmost column
     draw_full_screen(0,0)
@@ -265,17 +277,31 @@ inline void game_logic() {
     }
     
     if input_a != 0 {
-        if playeryvel > 0 {
+        if can_jump {
             playeryvel = 0
-            playery_accel = 0
+            playery_accel = 4
+            jumping = true
+            can_jump = false
         }
-        playeryvel -= 4
+        if playery_accel < 22 && jumping {
+            playery_accel += 2
+            playeryvel -= (playery_accel >> 2)
+        }
+        else {
+            playery_accel = player_gravity_accel
+            playeryvel += playery_accel
+            jumping = false
+        }
     }
     else {
         // scrolling_right = false
         // scrolling_left = true
         playery_accel = player_gravity_accel
         playeryvel += playery_accel
+        jumping = false
+        if on_ground {
+            can_jump = true
+        }
     }
     
     
@@ -354,7 +380,6 @@ void irq() {
 
 void check_player_collis_and_update_player_loc() {
     sbyte temp_vel
-    sbyte playeryvel_backup
     byte old_playerx
     byte old_playerx_frac
     byte old_playery
@@ -373,6 +398,7 @@ void check_player_collis_and_update_player_loc() {
     update_player_y_speed()
     
     check_background_collis_vert(playerx, playery, player_width, player_height)
+    on_ground = down_collis_flag
     if collis_flag{
         playery = old_playery
         playery_frac = old_playery_frac
@@ -380,7 +406,6 @@ void check_player_collis_and_update_player_loc() {
         //if the speed was great enough to possibly have skipped over a possible
         //landing point, then do the collision in finer steps
         if playeryvel >= 4 {
-            playeryvel_backup = playeryvel
             temp_vel = playeryvel
             playeryvel = 4
             while (temp_vel >= 4){
@@ -398,9 +423,29 @@ void check_player_collis_and_update_player_loc() {
                 reset_collis_flags()
                 temp_vel -= 4
             }
-            playeryvel = playeryvel_backup
         }
-            
+        //do the same for a negative velocities
+        if playeryvel <= -4 {
+            playeryvel = flip_sign(playeryvel)
+            temp_vel = playeryvel
+            playeryvel = -4
+            while (temp_vel >= 4){
+                update_player_y_speed()
+                
+                check_background_collis_vert(playerx, playery, player_width, player_height)
+                if collis_flag{
+                    playery = old_playery
+                    playery_frac = old_playery_frac
+                }
+                else {
+                    old_playery = playery
+                    old_playery_frac = playery_frac
+                }
+                reset_collis_flags()
+                temp_vel -= 4
+            }
+        }
+        playeryvel = 0
     }
     reset_collis_flags()
     
@@ -427,14 +472,17 @@ inline void snap_player_pos_limits() {
     }
     if playery > $D0 {
         playery = $D0
+        on_ground = true
     }
     if playery < $20 {
-        playery = $20 
+        playery = $20
     }
 }
 
 inline void reset_collis_flags() {
     collis_flag = false
+    up_collis_flag = false
+    down_collis_flag = false
 }
 
 byte get_column_from_screenx(byte screenx) {
@@ -492,6 +540,7 @@ void check_background_collis(byte screenx, byte screeny, byte spritewidth, byte 
             _current_tile = get_tile(new_column1+i, new_row1)
             if _current_tile != $24 {
                 collis_flag = true
+                down_collis_flag = true
                 return
             }
             i += 1
@@ -510,6 +559,7 @@ void check_background_collis(byte screenx, byte screeny, byte spritewidth, byte 
             _current_tile = get_tile(new_column1+i, new_row1)
             if _current_tile != $24 {
                 collis_flag = true
+                up_collis_flag = true
                 return
             }
             i += 1
