@@ -1,4 +1,4 @@
-// compile with -t nes_small_v and -O1
+// compile with -t nes_small_v and -O4
 
 //use the dpad to move the player around
 //use a to jump
@@ -21,8 +21,6 @@ const word ppu_attrtable3 = $2FC0
 const word ppu_pallete_ram = $3F00
 
 array oam_buffer [256] @$200 // sprite buffer
-
-byte temp //temp variable for assembly use
 
 //constant offsets for oam_buffer
 //so we can draw the player metasprite easily,
@@ -70,8 +68,8 @@ byte playery_frac //fractional part of playery, can range from 0-3 (first 2 bits
 //velocities are added to playerx_frac and playery_frac, so they should be treated as
 //fractional parts (i.e. playerxvel = 4 means playerx will increase by 1, playerxvel = 8
 //means playerx will increase by 2, etc...)
-sbyte playerxvel
-sbyte playeryvel
+volatile sbyte playerxvel
+volatile sbyte playeryvel
 //speed added to player when moving
 byte playerx_speed
 byte playerx_accel
@@ -80,10 +78,10 @@ byte scroll_speed
 const byte player_width = 12 //width in pixels
 const byte player_height = 12 //height in pixels
 const byte player_max_xvel = 10
-const byte player_max_xvel_neg = -10
+const byte player_max_xvel_neg = -11
 const byte player_x_friction = 8
-const byte player_max_yvel = 16
-const byte player_max_yvel_neg = -16
+const byte player_max_yvel = 20
+const byte player_max_yvel_neg = -21
 const byte player_gravity_accel = 4
 
 byte nametable //current nametable
@@ -223,7 +221,11 @@ void nmi() {
     ppu_set_scroll(xscroll,0)
     ppu_ctrl = %10010000 | nametable
     ppu_mask = %00011100
+    
+    game_logic()
+}
 
+inline void game_logic() {
     //game logic goes here
     read_joy1()
     
@@ -269,12 +271,11 @@ void nmi() {
     }
     
     if input_a != 0 {
-        // scrolling_right = true
-        // scrolling_left = false
-        if playeryvel < 0 {
+        if playeryvel > 0 {
             playeryvel = 0
+            playery_accel = 0
         }
-        playeryvel -= 12
+        playeryvel -= 4
     }
     else {
         // scrolling_right = false
@@ -293,6 +294,7 @@ void nmi() {
         playerxvel = player_max_xvel_neg
         playerx_frac = 0
     }    
+    
     if playeryvel >= player_max_yvel {
         playeryvel = player_max_yvel
         playery_frac = 0
@@ -348,8 +350,6 @@ void nmi() {
         scrolling_left = false
         scrolling_right = false
     }
-    
-    // playerxvel = 0
 
     snap_player_pos_limits()
     update_player_sprites()
@@ -359,7 +359,7 @@ void irq() {
 }
 
 void check_player_collis_and_update_player_loc() {
-    byte i
+    sbyte temp_vel
     byte old_playerx
     byte old_playerx_frac
     byte old_playery
@@ -371,18 +371,37 @@ void check_player_collis_and_update_player_loc() {
     old_playery_frac = playery_frac
     
     //do vertical collision checking
-    update_player_y_speed()
+    
+    //if we're going too fast, do the collision checking in two steps
+    //to ensure we stick to the ground
+    
+    temp_vel = playeryvel
+    while (playeryvel >= 4){
+        update_player_y_speed(4)
+        
+        check_background_collis(playerx, playery, player_width, player_height)
+        if up_collis_flag || down_collis_flag || left_collis_flag || right_collis_flag{
+            playery = old_playery
+            playery_frac = old_playery_frac
+        }
+        else {
+            old_playery = playery
+            old_playery_frac = playery_frac
+        }
+        reset_collis_flags()
+        playeryvel -= 4
+    }
+    
+    update_player_y_speed(playeryvel)
     
     check_background_collis(playerx, playery, player_width, player_height)
     if up_collis_flag || down_collis_flag || left_collis_flag || right_collis_flag{
         playery = old_playery
         playery_frac = old_playery_frac
-        //stick the player to whatever they've hit
-        if playeryvel > 0{
-            playery = (playery & %11111000) + 3
-        }
     }
     reset_collis_flags()
+    
+    playeryvel = temp_vel
     
     //do horizontal collision checking
     update_player_x_speed()
@@ -524,20 +543,24 @@ inline void update_player_x_speed() {
     }
 }
 
-inline void update_player_y_speed() {
-    if playeryvel < 0 {
-        playeryvel *= -1
-        playery -= playeryvel >> 2
-        playery_frac -= playeryvel & %00000011
+void update_player_y_speed(sbyte yvel) {
+    //BUG: compiler bugs out when -O4 is set and 
+    //     you check yvel's sign by using this:
+    //     if yvel < 0 {
+    //     instead of what is here
+    if yvel & %10000000 != 0{
+        yvel *= -1
+        playery -= yvel >> 2
+        playery_frac -= yvel & %00000011
         if playery_frac > 3 {
             playery_frac += 4 // 4 because 4 + -1 = 3, 4 + -2 = 2, 4 + -3 = 1, 4 + -4 = 0
             playery -= 1
         }
-        playeryvel *= -1
+        yvel *= -1
     }
     else {
-        playery += playeryvel >> 2
-        playery_frac += playeryvel & %00000011
+        playery += yvel >> 2
+        playery_frac += yvel & %00000011
         if playery_frac > 3 {
             playery_frac -= 3
             playery += 1
