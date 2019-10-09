@@ -240,28 +240,28 @@ inline void game_logic() {
         // scrolling_right = true
         // scrolling_left = false
         if playerx < $F0 {
-            if (playerx_accel/4) < playerx_speed {
+            if (playerx_accel >> 2) < playerx_speed {
                 playerx_accel += 1
             }
             else {
-                playerx_accel = playerx_speed * 4
+                playerx_accel = playerx_speed << 2
             }
             // playerxvel += playerx_speed
-            playerxvel += (playerx_accel/4)
+            playerxvel += (playerx_accel >> 2)
         }
     }
     else if input_dx < 0 {
         // scrolling_right = false
         // scrolling_left = true
         if playerx > $08 {
-            if (playerx_accel/4) < playerx_speed {
+            if (playerx_accel >> 2) < playerx_speed {
                 playerx_accel += 1
             }
             else {
-                playerx_accel = playerx_speed * 4
+                playerx_accel = playerx_speed << 2
             }
             // playerxvel -= playerx_speed
-            playerxvel -= (playerx_accel/4)
+            playerxvel -= (playerx_accel >> 2)
         }
     }
     else {
@@ -443,10 +443,10 @@ byte get_column_from_screenx(byte screenx) {
     byte new_column
     word new_column_offset //must be a word because (xscroll+newplayerx) can overflow
     
-    new_column = current_screen * $20 //leftmost column of current screen
+    new_column = current_screen << 5 //leftmost column of current screen
     new_column_offset = xscroll
     new_column_offset += screenx
-    new_column_offset /= 8
+    new_column_offset >>= 3
     new_column += new_column_offset.lo
     if new_column >= $80 {
        new_column -= $80
@@ -456,7 +456,7 @@ byte get_column_from_screenx(byte screenx) {
 }
 
 inline byte get_row_from_screeny(byte screeny) {
-    return screeny/8
+    return screeny >> 3
 }
 
 void check_background_collis(byte screenx, byte screeny, byte spritewidth, byte spriteheight) {
@@ -522,8 +522,8 @@ void check_background_collis(byte screenx, byte screeny, byte spritewidth, byte 
 }
 
 inline void update_player_x_speed() {
-    if playerxvel < 0 {
-        playerxvel *= -1
+    if playerxvel < 0{
+        playerxvel = flip_sign(playerxvel) //playerxvel *= -1
         playerx -= playerxvel >> 2
         playerx_frac -= playerxvel & %00000011
         if playerx_frac > 3 {
@@ -531,7 +531,7 @@ inline void update_player_x_speed() {
                               // so basically, (max fractional part value) + 1
             playerx -= 1
         }
-        playerxvel *= -1
+        playerxvel = flip_sign(playerxvel) //playerxvel *= -1
     }
     else {
         playerx += playerxvel >> 2
@@ -548,15 +548,15 @@ void update_player_y_speed(sbyte yvel) {
     //     you check yvel's sign by using this:
     //     if yvel < 0 {
     //     instead of what is here
-    if yvel & %10000000 != 0{
-        yvel *= -1
+    if yvel < 0{
+        yvel = flip_sign(yvel)
         playery -= yvel >> 2
         playery_frac -= yvel & %00000011
         if playery_frac > 3 {
             playery_frac += 4 // 4 because 4 + -1 = 3, 4 + -2 = 2, 4 + -3 = 1, 4 + -4 = 0
             playery -= 1
         }
-        yvel *= -1
+        yvel = flip_sign(yvel) // yvel *= -1
     }
     else {
         playery += yvel >> 2
@@ -584,8 +584,8 @@ inline void update_scroll_left() {
         nametable ^= %00000001
     }
     if changed_column {
-        draw_seam_column = current_screen * $20
-        draw_seam_column += xscroll/8
+        draw_seam_column = current_screen << 5
+        draw_seam_column += xscroll >> 3
     }
     
     //deal with the attribute column offset
@@ -615,10 +615,10 @@ inline void left_metatile_scroll() {
         
         if changed_screen {
             //we've overflowed onto a new screen, so draw on the right nametable
-            load_attr_column($07,draw_nametable,next_column/4 - 1)
+            load_attr_column($07,draw_nametable,(next_column>>2) - 1)
         }
         else {
-            load_attr_column(xscroll/32 - 1,draw_nametable,next_column/4 - 1)
+            load_attr_column((xscroll>>5) - 1,draw_nametable,(next_column>>2) - 1)
             //we subtract 1 from the 1st and 3rd arguments because we're loading
             //in attribute tables 1 step ahead in order to keep up with scrolling
         }
@@ -628,7 +628,7 @@ inline void left_metatile_scroll() {
         // load the appropriate tiles
         next_column = draw_seam_column
 
-        draw_column_with_counter(xscroll/16,draw_nametable,next_column/2)
+        draw_column_with_counter((xscroll>>4),draw_nametable,(next_column>>1))
     }
 }
 
@@ -653,8 +653,8 @@ inline void update_scroll_right() {
     }
     if changed_column {
         //we've passed a column boundary, update our current column
-        draw_seam_column = current_screen * $20
-        draw_seam_column += xscroll/8
+        draw_seam_column = current_screen << 5
+        draw_seam_column += xscroll >> 3
     }
     
     //deal with the attribute column offset
@@ -722,10 +722,10 @@ inline void right_metatile_scroll() {
         
         if (xscroll+attr_draw_offset) < (prev_xscroll+attr_draw_offset) {
             //we've overflowed onto a new screen, so draw on the right nametable
-            load_attr_column((xscroll+attr_draw_offset)/32,draw_nametable,next_column/4 + 1)
+            load_attr_column((xscroll+attr_draw_offset)>>5,draw_nametable,(next_column>>2) + 1)
         }
         else {
-            load_attr_column((xscroll+attr_draw_offset)/32,draw_nametable,next_column/4 + 1)
+            load_attr_column((xscroll+attr_draw_offset)>>5,draw_nametable,(next_column>>2) + 1)
             //add 1 to 3rd argument because we are loading the column that is one ahead
             //of our loading seam
         }
@@ -739,7 +739,7 @@ inline void right_metatile_scroll() {
             // if we're on the final screen, then wrap around to the beginning
             next_column -= $80
         }
-        draw_column_with_counter(xscroll/16,draw_nametable,next_column/2)
+        draw_column_with_counter(xscroll>>4,draw_nametable,next_column>>1)
     }
 }
 
@@ -853,16 +853,16 @@ void load_attr_column(byte screen_column, byte nametable, byte attrs_column) {
     read_ppu_status()
     for i,1,until,$08 {
         if nametable == 0 {
-            ppu_set_addr(ppu_attrtable0 + i*8 + screen_column)
+            ppu_set_addr(ppu_attrtable0 + (i<<3) + screen_column)
         }
         else if nametable == 1 {
-            ppu_set_addr(ppu_attrtable1 + i*8 + screen_column)
+            ppu_set_addr(ppu_attrtable1 + (i<<3) + screen_column)
         }
         else if nametable == 2 {
-            ppu_set_addr(ppu_attrtable2 + i*8 + screen_column)
+            ppu_set_addr(ppu_attrtable2 + (i<<3) + screen_column)
         }
         else if nametable == 3 {
-            ppu_set_addr(ppu_attrtable3 + i*8 + screen_column)
+            ppu_set_addr(ppu_attrtable3 + (i<<3) + screen_column)
         }
 
         ppu_write_data(attrs_ptr[i])
@@ -890,16 +890,16 @@ inline void load_attr_first_draw(byte nametable, byte screen_column, pointer att
     byte i
     for i,1,until,$05 {
         if nametable == 0 {
-            ppu_set_addr(ppu_attrtable0 + i*8 + screen_column)
+            ppu_set_addr(ppu_attrtable0 + (i<<3) + screen_column)
         }
         else if nametable == 1 {
-            ppu_set_addr(ppu_attrtable1 + i*8 + screen_column)
+            ppu_set_addr(ppu_attrtable1 + (i<<3) + screen_column)
         }
         else if nametable == 2 {
-            ppu_set_addr(ppu_attrtable2 + i*8 + screen_column)
+            ppu_set_addr(ppu_attrtable2 + (i<<3) + screen_column)
         }
         else if nametable == 3 {
-            ppu_set_addr(ppu_attrtable3 + i*8 + screen_column)
+            ppu_set_addr(ppu_attrtable3 + (i<<3) + screen_column)
         }
 
         ppu_write_data(attrs_ptr[i])
@@ -911,16 +911,16 @@ inline void load_attr_second_draw(byte nametable, byte screen_column, pointer at
     byte i
     for i,5,until,$08 {
         if nametable == 0 {
-            ppu_set_addr(ppu_attrtable0 + i*8 + screen_column)
+            ppu_set_addr(ppu_attrtable0 + (i<<3) + screen_column)
         }
         else if nametable == 1 {
-            ppu_set_addr(ppu_attrtable1 + i*8 + screen_column)
+            ppu_set_addr(ppu_attrtable1 + (i<<3) + screen_column)
         }
         else if nametable == 2 {
-            ppu_set_addr(ppu_attrtable2 + i*8 + screen_column)
+            ppu_set_addr(ppu_attrtable2 + (i<<3) + screen_column)
         }
         else if nametable == 3 {
-            ppu_set_addr(ppu_attrtable3 + i*8 + screen_column)
+            ppu_set_addr(ppu_attrtable3 + (i<<3) + screen_column)
         }
 
         ppu_write_data(attrs_ptr[i])
@@ -1110,7 +1110,7 @@ inline pointer get_metatile_column(byte metatiles_column) {
 inline void draw_metatile_first_column(byte metatile) {
     pointer metatile_ptr
     metatile_ptr = metatiles
-    metatile_ptr += metatile*4
+    metatile_ptr += metatile << 2
     
     ppu_write_data(metatile_ptr[0])
     ppu_write_data(metatile_ptr[1])
@@ -1119,7 +1119,7 @@ inline void draw_metatile_first_column(byte metatile) {
 inline void draw_metatile_second_column(byte metatile) {
     pointer metatile_ptr
     metatile_ptr = metatiles
-    metatile_ptr += metatile*4
+    metatile_ptr += metatile << 2
     
     ppu_write_data(metatile_ptr[2])
     ppu_write_data(metatile_ptr[3])
@@ -1138,8 +1138,8 @@ byte get_tile(byte column, byte row) {
     pointer metatile_ptr
     
     //get the metatile row and column numbers
-    metatile_column_num = column / 2
-    metatile_row_num = row / 2
+    metatile_column_num = column >> 1
+    metatile_row_num = row >> 1
     
     //get the metatile column data pointer
     metatiles_column = get_metatile_column(metatile_column_num)
@@ -1150,7 +1150,7 @@ byte get_tile(byte column, byte row) {
     //now we can use the original column and row numbers to
     //get the proper tile
     metatile_ptr = metatiles
-    metatile_ptr += tile*4
+    metatile_ptr += tile << 2
     
     //convert column and row to metatile definition offsets
     column &= %00000001 //column now either 0 or 1 depending on odd or even
@@ -1233,6 +1233,19 @@ inline asm void wait_cycles(byte x) {
         DEX
         ! BNE WaitScanline
     ? RTS
+}
+
+inline byte flip_sign(byte a) {
+    //flip the sign of a signed byte
+    if a & %10000000 != 0{
+        a -= 1
+        a ^= $FF
+    }
+    else {
+        a ^= $FF
+        a += 1
+    }
+    return a
 }
 
 const array pallete = [
