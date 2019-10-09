@@ -75,12 +75,16 @@ sbyte playeryvel
 //speed added to player when moving
 byte playerx_speed
 byte playerx_accel
+byte playery_accel
 byte scroll_speed
 const byte player_width = 12 //width in pixels
 const byte player_height = 12 //height in pixels
 const byte player_max_xvel = 10
 const byte player_max_xvel_neg = -10
 const byte player_x_friction = 8
+const byte player_max_yvel = 16
+const byte player_max_yvel_neg = -16
+const byte player_gravity_accel = 4
 
 byte nametable //current nametable
 byte draw_nametable //the nametable we want to draw on
@@ -130,6 +134,7 @@ void main() {
     playerx_speed = 8
     scroll_speed = 2
     playerx_accel = 0
+    playery_accel = 0
     scrolling_right = false
     scrolling_left = false
     left_collis_flag = false
@@ -266,12 +271,16 @@ void nmi() {
     if input_a != 0 {
         // scrolling_right = true
         // scrolling_left = false
-        playeryvel -= 8
+        if playeryvel < 0 {
+            playeryvel = 0
+        }
+        playeryvel -= 12
     }
     else {
         // scrolling_right = false
         // scrolling_left = true
-        playeryvel += 8
+        playery_accel = player_gravity_accel
+        playeryvel += playery_accel
     }
     
     
@@ -283,6 +292,14 @@ void nmi() {
     if playerxvel <= player_max_xvel_neg {
         playerxvel = player_max_xvel_neg
         playerx_frac = 0
+    }    
+    if playeryvel >= player_max_yvel {
+        playeryvel = player_max_yvel
+        playery_frac = 0
+    }
+    if playeryvel <= player_max_yvel_neg {
+        playeryvel = player_max_yvel_neg
+        playery_frac = 0
     }
     
     check_player_collis_and_update_player_loc()
@@ -333,7 +350,6 @@ void nmi() {
     }
     
     // playerxvel = 0
-    playeryvel = 0
 
     snap_player_pos_limits()
     update_player_sprites()
@@ -343,6 +359,7 @@ void irq() {
 }
 
 void check_player_collis_and_update_player_loc() {
+    byte i
     byte old_playerx
     byte old_playerx_frac
     byte old_playery
@@ -360,6 +377,10 @@ void check_player_collis_and_update_player_loc() {
     if up_collis_flag || down_collis_flag || left_collis_flag || right_collis_flag{
         playery = old_playery
         playery_frac = old_playery_frac
+        //stick the player to whatever they've hit
+        if playeryvel > 0{
+            playery = (playery & %11111000) + 3
+        }
     }
     reset_collis_flags()
     
