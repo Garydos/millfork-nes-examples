@@ -1,4 +1,4 @@
-// compile with -t nes_small_v and at least -O1, preferably -O4
+// compile with -t nes_small_v and -O1
 
 //use the dpad to move the player around
 //use a to jump
@@ -74,9 +74,13 @@ sbyte playerxvel
 sbyte playeryvel
 //speed added to player when moving
 byte playerx_speed
+byte playerx_accel
 byte scroll_speed
 const byte player_width = 12 //width in pixels
 const byte player_height = 12 //height in pixels
+const byte player_max_xvel = 10
+const byte player_max_xvel_neg = -10
+const byte player_x_friction = 8
 
 byte nametable //current nametable
 byte draw_nametable //the nametable we want to draw on
@@ -125,6 +129,7 @@ void main() {
     playery = $60
     playerx_speed = 8
     scroll_speed = 2
+    playerx_accel = 0
     scrolling_right = false
     scrolling_left = false
     left_collis_flag = false
@@ -218,47 +223,83 @@ void nmi() {
     read_joy1()
     
     if input_b != 0 {
-        playerx_speed = 10
+        playerx_speed = 7
     }
     else {
-        playerx_speed = 4
+        playerx_speed = 5
     }
     
     if input_dx > 0 {
         // scrolling_right = true
         // scrolling_left = false
         if playerx < $F0 {
-            playerxvel += playerx_speed
+            if (playerx_accel/4) < playerx_speed {
+                playerx_accel += 1
+            }
+            else {
+                playerx_accel = playerx_speed * 4
+            }
+            // playerxvel += playerx_speed
+            playerxvel += (playerx_accel/4)
         }
     }
     else if input_dx < 0 {
         // scrolling_right = false
         // scrolling_left = true
         if playerx > $08 {
-            playerxvel -= playerx_speed
+            if (playerx_accel/4) < playerx_speed {
+                playerx_accel += 1
+            }
+            else {
+                playerx_accel = playerx_speed * 4
+            }
+            // playerxvel -= playerx_speed
+            playerxvel -= (playerx_accel/4)
         }
     }
     else {
         scrolling_left = false
         scrolling_right = false
+        playerx_accel = 0
     }
     
-    if input_dy > 0 {
+    if input_a != 0 {
         // scrolling_right = true
         // scrolling_left = false
-        if playery < $D0 {
-            playeryvel += 8
-        }
+        playeryvel -= 8
     }
-    else if input_dy < 0 {
+    else {
         // scrolling_right = false
         // scrolling_left = true
-        if playery > $20 {
-            playeryvel -= 8
-        }
+        playeryvel += 8
+    }
+    
+    
+    //cap velocity
+    if playerxvel >= player_max_xvel {
+        playerxvel = player_max_xvel
+        playerx_frac = 0
+    }
+    if playerxvel <= player_max_xvel_neg {
+        playerxvel = player_max_xvel_neg
+        playerx_frac = 0
     }
     
     check_player_collis_and_update_player_loc()
+    
+    //apply friction
+    if playerxvel < 0 {
+        playerxvel += player_x_friction
+        if playerxvel > 0 {
+            playerxvel = 0
+        }
+    }
+    else if playerxvel > 0 {
+        playerxvel -= player_x_friction
+        if playerxvel < 0 {
+            playerxvel = 0
+        }
+    }
     
     if playerx > $78 && not(current_screen == 3 && xscroll == 0) {
         // playerx = $78
@@ -290,13 +331,12 @@ void nmi() {
         scrolling_left = false
         scrolling_right = false
     }
+    
+    // playerxvel = 0
+    playeryvel = 0
 
     snap_player_pos_limits()
     update_player_sprites()
-    
-    //reset velocity
-    playerxvel = 0
-    playeryvel = 0
 }
 
 void irq() {
