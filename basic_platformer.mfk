@@ -79,13 +79,14 @@ byte playerx_speed
 byte playerx_accel
 byte playery_accel
 byte scroll_speed
-const byte player_width = 12 //width in pixels
-const byte player_height = 12 //height in pixels
+const byte player_width = 14 //width in pixels
+const byte player_height = 14 //height in pixels
 const byte player_max_xvel = 10
 const byte player_max_xvel_neg = -10
 const byte player_x_friction = 8
-const byte player_max_yvel = 20
-const byte player_max_yvel_neg = -20
+const byte player_x_air_friction = 4
+const byte player_max_yvel = 24
+const byte player_max_yvel_neg = -24
 const byte player_gravity_accel = 4
 
 byte nametable //current nametable
@@ -279,11 +280,11 @@ inline void game_logic() {
     if input_a != 0 {
         if can_jump {
             playeryvel = 0
-            playery_accel = 4
+            playery_accel = 8
             jumping = true
             can_jump = false
         }
-        if playery_accel < 22 && jumping {
+        if playery_accel < 24 && jumping {
             playery_accel += 2
             playeryvel -= (playery_accel >> 2)
         }
@@ -456,8 +457,50 @@ void check_player_collis_and_update_player_loc() {
     if collis_flag{
         playerx = old_playerx
         playerx_frac = old_playerx_frac
-        scrolling_left = false
-        scrolling_right = false
+        
+        //if the speed was great enough to possibly have skipped over a possible
+        //landing point, then do the collision in finer steps
+        if playerxvel >= 4 {
+            temp_vel = playerxvel
+            playerxvel = 2
+            while (temp_vel >= 2){
+                update_player_x_speed()
+                
+                check_background_collis_vert(playerx, playery, player_width, player_height)
+                if collis_flag{
+                    playerx = old_playerx
+                    playerx_frac = old_playerx_frac
+                }
+                else {
+                    old_playerx = playerx
+                    old_playerx_frac = playerx_frac
+                }
+                reset_collis_flags()
+                temp_vel -= 2
+            }
+        }
+        //do the same for a negative velocities
+        if playerxvel <= -4 {
+            playerxvel = flip_sign(playerxvel)
+            temp_vel = playerxvel
+            playerxvel = -2
+            while (temp_vel >= 2){
+                update_player_x_speed()
+                
+                check_background_collis_vert(playerx, playery, player_width, player_height)
+                if collis_flag{
+                    playerx = old_playerx
+                    playerx_frac = old_playerx_frac
+                }
+                else {
+                    old_playerx = playerx
+                    old_playerx_frac = playerx_frac
+                }
+                reset_collis_flags()
+                temp_vel -= 2
+            }
+        }
+        playerxvel = 0
     }
     reset_collis_flags()
 }
