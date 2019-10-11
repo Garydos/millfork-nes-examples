@@ -81,8 +81,8 @@ byte playerx_speed
 byte playerx_accel
 byte playery_accel
 byte scroll_speed
-const byte player_width = 14 //width in pixels
-const byte player_height = 16 //height in pixels
+const byte player_width = 12 //width in pixels
+const byte player_height = 14 //height in pixels
 const byte player_max_xvel = 10
 const byte player_max_xvel_neg = -10
 const byte player_x_friction = 8
