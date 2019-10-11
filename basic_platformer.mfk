@@ -405,6 +405,8 @@ void check_player_collis_and_update_player_loc() {
     check_background_collis_vert(playerx, playery, player_width, player_height)
     on_ground = down_collis_flag
     if collis_flag{   
+        playery = old_playery
+        playery_frac = old_playery_frac
         playeryvel = 0
     }
     
@@ -413,9 +415,11 @@ void check_player_collis_and_update_player_loc() {
     if down_collis_flag {
         playery_frac = 0
         do {
-            playery -= 1
+            collis_flag = false
+            playery += 1
             check_background_collis_vert(playerx, playery, player_width, player_height)
-        } while down_collis_flag
+        } while not(collis_flag)
+        playery -= 1
     }
     //do the same for a negative velocities
     else if up_collis_flag {
