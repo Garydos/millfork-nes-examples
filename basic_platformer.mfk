@@ -59,6 +59,8 @@ const byte sprite3_tile = 3
 bool collis_flag
 bool down_collis_flag
 bool up_collis_flag
+bool right_collis_flag
+bool left_collis_flag
 
 //player physics flags
 bool on_ground
@@ -80,11 +82,11 @@ byte playerx_accel
 byte playery_accel
 byte scroll_speed
 const byte player_width = 14 //width in pixels
-const byte player_height = 14 //height in pixels
+const byte player_height = 16 //height in pixels
 const byte player_max_xvel = 10
 const byte player_max_xvel_neg = -10
 const byte player_x_friction = 8
-const byte player_x_air_friction = 4
+const byte player_x_air_friction = 8
 const byte player_max_yvel = 24
 const byte player_max_yvel_neg = -24
 const byte player_gravity_accel = 4
@@ -143,6 +145,8 @@ void main() {
     collis_flag = false
     down_collis_flag = false
     up_collis_flag = false
+    right_collis_flag = false
+    left_collis_flag = false
     changed_column = false
     changed_meta_column = false
     changed_attr_column = false
@@ -400,108 +404,68 @@ void check_player_collis_and_update_player_loc() {
     
     check_background_collis_vert(playerx, playery, player_width, player_height)
     on_ground = down_collis_flag
-    if collis_flag{
+    if collis_flag{   
         playery = old_playery
         playery_frac = old_playery_frac
-        
-        //if the speed was great enough to possibly have skipped over a possible
-        //landing point, then do the collision in finer steps
-        if playeryvel >= 4 {
-            temp_vel = playeryvel
-            playeryvel = 4
-            while (temp_vel >= 4){
-                update_player_y_speed()
-                
-                check_background_collis_vert(playerx, playery, player_width, player_height)
-                if collis_flag{
-                    playery = old_playery
-                    playery_frac = old_playery_frac
-                }
-                else {
-                    old_playery = playery
-                    old_playery_frac = playery_frac
-                }
-                reset_collis_flags()
-                temp_vel -= 4
-            }
-        }
-        //do the same for a negative velocities
-        if playeryvel <= -4 {
-            playeryvel = flip_sign(playeryvel)
-            temp_vel = playeryvel
-            playeryvel = -4
-            while (temp_vel >= 4){
-                update_player_y_speed()
-                
-                check_background_collis_vert(playerx, playery, player_width, player_height)
-                if collis_flag{
-                    playery = old_playery
-                    playery_frac = old_playery_frac
-                }
-                else {
-                    old_playery = playery
-                    old_playery_frac = playery_frac
-                }
-                reset_collis_flags()
-                temp_vel -= 4
-            }
-        }
         playeryvel = 0
     }
-    reset_collis_flags()
+    
+    //if the speed was great enough to possibly have skipped over a
+    //landing point, then stick them to the ground
+    if down_collis_flag {
+        playery_frac = 0
+        do {
+            collis_flag = false
+            playery += 1
+            check_background_collis_vert(playerx, playery, player_width, player_height)
+        } while not(collis_flag)
+        playery -= 1
+    }
+    //do the same for a negative velocities
+    else if up_collis_flag {
+        playery_frac = 0
+        do {
+            collis_flag = false
+            playery -= 1
+            check_background_collis_vert(playerx, playery, player_width, player_height)
+        }while not(collis_flag)
+        playery += 1
+    }
+    
+    collis_flag = false
     
     //do horizontal collision checking
     update_player_x_speed()
 
     check_background_collis_horiz(playerx, playery, player_width, player_height)
-    if collis_flag{
+    if collis_flag {
         playerx = old_playerx
         playerx_frac = old_playerx_frac
-        
-        //if the speed was great enough to possibly have skipped over a possible
-        //landing point, then do the collision in finer steps
-        if playerxvel >= 4 {
-            temp_vel = playerxvel
-            playerxvel = 2
-            while (temp_vel >= 2){
-                update_player_x_speed()
-                
-                check_background_collis_vert(playerx, playery, player_width, player_height)
-                if collis_flag{
-                    playerx = old_playerx
-                    playerx_frac = old_playerx_frac
-                }
-                else {
-                    old_playerx = playerx
-                    old_playerx_frac = playerx_frac
-                }
-                reset_collis_flags()
-                temp_vel -= 2
-            }
-        }
-        //do the same for a negative velocities
-        if playerxvel <= -4 {
-            playerxvel = flip_sign(playerxvel)
-            temp_vel = playerxvel
-            playerxvel = -2
-            while (temp_vel >= 2){
-                update_player_x_speed()
-                
-                check_background_collis_vert(playerx, playery, player_width, player_height)
-                if collis_flag{
-                    playerx = old_playerx
-                    playerx_frac = old_playerx_frac
-                }
-                else {
-                    old_playerx = playerx
-                    old_playerx_frac = playerx_frac
-                }
-                reset_collis_flags()
-                temp_vel -= 2
-            }
-        }
         playerxvel = 0
     }
+    
+    //if the speed was great enough to possibly have skipped over a
+    //landing point, then stick them to the wall
+    if right_collis_flag {
+        playerx_frac = 0
+        do {
+            collis_flag = false
+            playerx += 1
+            check_background_collis_vert(playerx, playery, player_width, player_height)
+        } while not(collis_flag)
+        playerx -= 1
+    }
+    //do the same for a negative velocities
+    else if left_collis_flag {
+        playerx_frac = 0
+        do {
+            collis_flag = false
+            playerx -= 1
+            check_background_collis_vert(playerx, playery, player_width, player_height)
+        }while not(collis_flag)
+        playerx += 1
+    }
+    
     reset_collis_flags()
 }
 
@@ -526,6 +490,8 @@ inline void reset_collis_flags() {
     collis_flag = false
     up_collis_flag = false
     down_collis_flag = false
+    left_collis_flag = false
+    right_collis_flag = false
 }
 
 byte get_column_from_screenx(byte screenx) {
@@ -572,7 +538,7 @@ void check_background_collis(byte screenx, byte screeny, byte spritewidth, byte 
 
     if vert {
         //DOWN SIDE
-        new_row1 = get_row_from_screeny(screeny+spritewidth)
+        new_row1 = get_row_from_screeny(screeny+spriteheight)
         new_column1 = get_column_from_screenx(screenx)
         new_column2 = get_column_from_screenx(screenx+spritewidth)
         
@@ -609,6 +575,9 @@ void check_background_collis(byte screenx, byte screeny, byte spritewidth, byte 
         }
     }
     else {
+        //it is expected that the vertical
+        //collision checks are done first
+        
         //RIGHT SIDE
         new_column1 = get_column_from_screenx(screenx+spritewidth)
         new_row1 = get_row_from_screeny(screeny)
@@ -616,11 +585,12 @@ void check_background_collis(byte screenx, byte screeny, byte spritewidth, byte 
         
         limit = new_row2-new_row1
         i = 0
-        
+
         while i <= limit{
             _current_tile = get_tile(new_column1, new_row1+i)
             if _current_tile != $24 {
                 collis_flag = true
+                right_collis_flag = true
                 return
             }
             i += 1
@@ -633,11 +603,12 @@ void check_background_collis(byte screenx, byte screeny, byte spritewidth, byte 
         
         limit = new_row2-new_row1
         i = 0
-        
+
         while i <= limit{
             _current_tile = get_tile(new_column1, new_row1+i)
             if _current_tile != $24 {
                 collis_flag = true
+                left_collis_flag = true
                 return
             }
             i += 1
